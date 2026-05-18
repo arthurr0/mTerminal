@@ -65,6 +65,38 @@ describe('marketplace ipc handlers', () => {
     fs.rmSync(tmp, { recursive: true, force: true })
   })
 
+  it('rating:submit injects a 32-hex clientId derived from HWID', async () => {
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mt-mp-ipc-'))
+    const store = new MarketplaceStore({
+      home: tmp,
+      platform: 'linux',
+      env: { XDG_CONFIG_HOME: tmp },
+      appVersion: '0.1.0',
+    })
+    let captured: { extensionId: string; stars: number; clientId?: string } | null = null
+    const fetchImpl: typeof fetch = (async (_url: string, init?: RequestInit) => {
+      captured = JSON.parse((init?.body as string) ?? 'null')
+      return new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { 'content-type': 'application/json' },
+      })
+    }) as typeof fetch
+    const api = new MarketplaceApiClient({ endpoint: 'http://x', fetchImpl })
+    const handle = registerMarketplaceHandlers(() => fakeHost(), { api, store })
+
+    const result = (await __invoke('marketplace:rating:submit', {
+      extensionId: 'foo',
+      stars: 5,
+    })) as { ok: boolean }
+    expect(result.ok).toBe(true)
+    expect(captured?.extensionId).toBe('foo')
+    expect(captured?.stars).toBe(5)
+    expect(captured?.clientId).toMatch(/^[a-f0-9]{32}$/)
+
+    handle.unregister()
+    fs.rmSync(tmp, { recursive: true, force: true })
+  })
+
   it('returns NETWORK error when fetch fails', async () => {
     const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'mt-mp-ipc-'))
     const store = new MarketplaceStore({

@@ -4,6 +4,7 @@ import { MarketplaceApiClient, getApiClient, MarketplaceHttpError, MarketplaceNe
 import { MarketplaceStore, getMarketplaceStore } from './store'
 import { Installer } from './installer'
 import { UpdatesManager } from './updates'
+import { getClientId } from './hwid'
 
 export interface MarketplaceModuleHandle {
   api: MarketplaceApiClient
@@ -143,7 +144,8 @@ export function registerMarketplaceHandlers(
       req: { extensionId: string; stars: number; comment?: string },
     ) => {
       try {
-        const result = await api.submitRating(req)
+        const clientId = await getClientId()
+        const result = await api.submitRating({ ...req, clientId } as Parameters<MarketplaceApiClient['submitRating']>[0])
         return { ok: true, value: result }
       } catch (err) {
         return { ok: false, error: toErrorPayload(err) }
