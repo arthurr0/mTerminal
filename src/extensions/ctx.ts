@@ -179,6 +179,9 @@ export function createRendererCtx(manifest: NormalizedManifest): CreateCtxResult
     },
     open: (args) => wsBackend.openTab(args),
     close: (tabId) => wsBackend.closeTab(tabId),
+    activate: (tabId) => wsBackend.activateTab(tabId),
+    moveToGroup: (tabId, groupId) => wsBackend.moveTabToGroup(tabId, groupId),
+    rename: (tabId, title) => wsBackend.renameTab(tabId, title),
     active: () => wsBackend.active(),
     list: () => wsBackend.list(),
     onChange(cb) {

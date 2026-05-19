@@ -220,9 +220,12 @@ export interface TabsApi {
   registerTabType(type: TabTypeSpec): Disposable
   open(args: { type: string; title?: string; props?: unknown; groupId?: string | null }): Promise<number>
   close(tabId: number): void
+  activate(tabId: number): void
+  moveToGroup(tabId: number, groupId: string | null): void
+  rename(tabId: number, title: string): void
   active(): { id: number; type: string } | null
-  list(): Array<{ id: number; type: string; title: string; groupId: string | null; active: boolean }>
-  onChange(cb: (tabs: Array<{ id: number; type: string; title: string; groupId: string | null; active: boolean }>) => void): Disposable
+  list(): Array<{ id: number; type: string; title: string; groupId: string | null; active: boolean; kind: string }>
+  onChange(cb: (tabs: Array<{ id: number; type: string; title: string; groupId: string | null; active: boolean; kind: string }>) => void): Disposable
 }
 
 export interface DecoratorsApi {
@@ -309,7 +312,8 @@ export interface TerminalApi {
 export interface WorkspaceApi {
   groups(): Array<{ id: string; label: string }>
   activeGroup(): string | null
-  setActiveGroup(id: string): void
+  setActiveGroup(id: string | null): void
+  createGroup(name: string, kind?: string): string
   tabs(groupId?: string): Array<{ id: number; type: string; title: string; groupId: string | null; active: boolean }>
   cwd(): string | null
   readonly sections: WorkspaceSectionsApi
@@ -335,7 +339,7 @@ export interface NotifyApi {
 export interface UiApi {
   openModal<T = unknown>(spec: { title: string; width?: number; height?: number; render(host: HTMLElement, ctrl: { close(result?: unknown): void; setTitle(t: string): void }): void | (() => void) }): Promise<T | undefined>
   confirm(opts: { title: string; message: string; confirmLabel?: string; cancelLabel?: string; danger?: boolean }): Promise<boolean>
-  prompt(opts: { title: string; message?: string; placeholder?: string; defaultValue?: string }): Promise<string | undefined>
+  prompt(opts: { title: string; message?: string; placeholder?: string; defaultValue?: string; password?: boolean; confirmLabel?: string; cancelLabel?: string }): Promise<string | undefined>
   toast(opts: {
     kind?: 'info' | 'success' | 'warn' | 'error'
     title?: string

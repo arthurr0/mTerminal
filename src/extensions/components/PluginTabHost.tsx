@@ -38,9 +38,13 @@ export function PluginTabHost({
   const instanceRef = useRef<TabInstance | null>(null)
   const [missing, setMissing] = useState(false)
 
+  const activeRef = useRef(active)
+  activeRef.current = active
+
   useEffect(() => {
     const container = containerRef.current
     if (!container) return
+    let cancelled = false
     const host = document.createElement('div')
     host.className = 'plugin-tab-mount'
     host.style.position = 'absolute'
@@ -50,22 +54,32 @@ export function PluginTabHost({
 
     const reg = getTabTypeRegistry()
     const findAndMount = (): boolean => {
+      if (cancelled) return false
       const entry = reg.get(customType)
       if (!entry) return false
       let inst: TabInstance | null = null
       try {
         inst = entry.factory({
           tabId,
-          active,
+          active: activeRef.current,
           props: customProps,
           ctx: undefined as never,
         })
+        if (cancelled) {
+          try { inst.unmount() } catch { /* ignore */ }
+          return true
+        }
         inst.mount(host)
         instanceRef.current = inst
       } catch (err) {
         console.error(`[ext tabType "${customType}"] factory failed:`, err)
       }
       return Boolean(inst)
+    }
+
+    const removeHostEl = (): void => {
+      if (host.parentNode === container) container.removeChild(host)
+      hostRef.current = null
     }
 
     const cleanupHost = (): void => {
@@ -75,26 +89,31 @@ export function PluginTabHost({
         /* ignore */
       }
       instanceRef.current = null
-      if (host.parentNode === container) container.removeChild(host)
-      hostRef.current = null
+      removeHostEl()
     }
 
-    if (findAndMount()) {
-      setMissing(false)
-      return cleanupHost
-    }
+    const mountHandle = setTimeout(() => {
+      if (cancelled) return
+      if (findAndMount()) {
+        setMissing(false)
+      } else {
+        setMissing(true)
+      }
+    }, 0)
 
-    setMissing(true)
     const off = reg.subscribe(() => {
+      if (cancelled) return
       if (!instanceRef.current && findAndMount()) {
         setMissing(false)
       }
     })
     return () => {
+      cancelled = true
+      clearTimeout(mountHandle)
       off.dispose()
       cleanupHost()
     }
-  }, [tabId, customType, customProps, active])
+  }, [tabId, customType, customProps])
 
   useEffect(() => {
     const inst = instanceRef.current

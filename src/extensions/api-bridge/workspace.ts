@@ -15,16 +15,21 @@ export interface WorkspaceTab {
   title: string
   groupId: string | null
   active: boolean
+  kind: string
 }
 
 export interface WorkspaceBackend {
   groups(): Array<{ id: string; label: string }>
   activeGroup(): string | null
-  setActiveGroup(id: string): void
+  setActiveGroup(id: string | null): void
+  createGroup(name: string, kind?: string): string
   tabs(groupId?: string): WorkspaceTab[]
   cwd(): string | null
   openTab(args: { type: string; title?: string; props?: unknown; groupId?: string | null }): Promise<number>
   closeTab(tabId: number): void
+  activateTab(tabId: number): void
+  moveTabToGroup(tabId: number, groupId: string | null): void
+  renameTab(tabId: number, title: string): void
   active(): { id: number; type: string } | null
   list(): WorkspaceTab[]
   onTabsChange(cb: (tabs: WorkspaceTab[]) => void): Disposable
@@ -44,10 +49,14 @@ function createNoopBackend(): WorkspaceBackend {
     groups: () => [],
     activeGroup: () => null,
     setActiveGroup: () => {},
+    createGroup: () => '',
     tabs: () => [],
     cwd: () => null,
     openTab: async () => -1,
     closeTab: () => {},
+    activateTab: () => {},
+    moveTabToGroup: () => {},
+    renameTab: () => {},
     active: () => null,
     list: () => [],
     onTabsChange: () => ({ dispose: () => {} }),
@@ -60,6 +69,7 @@ export function createWorkspaceBridge(extId: string): WorkspaceApi {
     groups: () => backend.groups(),
     activeGroup: () => backend.activeGroup(),
     setActiveGroup: (id) => backend.setActiveGroup(id),
+    createGroup: (name, kind) => backend.createGroup(name, kind),
     tabs: (groupId) => backend.tabs(groupId),
     cwd: () => backend.cwd(),
     sections: {

@@ -199,6 +199,9 @@ export interface PromptOpts {
   message?: string
   placeholder?: string
   defaultValue?: string
+  password?: boolean
+  confirmLabel?: string
+  cancelLabel?: string
 }
 
 export async function openPrompt(opts: PromptOpts): Promise<string | undefined> {
@@ -211,26 +214,49 @@ export async function openPrompt(opts: PromptOpts): Promise<string | undefined> 
   return await store.openModal<string>({
     title: opts.title,
     render: (host, ctrl) => {
-      const wrap = document.createElement('div')
-      wrap.className = 'mt-modal-body'
+      const form = document.createElement('form')
+      form.className = 'mt-modal-body'
+      form.addEventListener('submit', (e) => {
+        e.preventDefault()
+        ctrl.close(input.value)
+      })
       if (opts.message) {
         const msg = document.createElement('p')
         msg.className = 'mt-modal-message'
         msg.textContent = opts.message
-        wrap.appendChild(msg)
+        form.appendChild(msg)
       }
       const input = document.createElement('input')
-      input.type = 'text'
+      input.type = opts.password ? 'password' : 'text'
       input.className = 'mt-modal-input'
       input.placeholder = opts.placeholder ?? ''
       input.value = opts.defaultValue ?? ''
-      wrap.appendChild(input)
+      if (opts.password) input.autocomplete = 'current-password'
       input.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter') ctrl.close(input.value)
-        if (e.key === 'Escape') ctrl.close(undefined)
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          ctrl.close(undefined)
+        }
       })
-      host.appendChild(wrap)
-      input.focus()
+      form.appendChild(input)
+
+      const actions = document.createElement('div')
+      actions.className = 'mt-modal-actions'
+      const cancel = document.createElement('button')
+      cancel.type = 'button'
+      cancel.className = 'mt-modal-btn'
+      cancel.textContent = opts.cancelLabel ?? 'cancel'
+      cancel.onclick = () => ctrl.close(undefined)
+      const ok = document.createElement('button')
+      ok.type = 'submit'
+      ok.className = 'mt-modal-btn is-primary'
+      ok.textContent = opts.confirmLabel ?? 'ok'
+      actions.appendChild(cancel)
+      actions.appendChild(ok)
+      form.appendChild(actions)
+
+      host.appendChild(form)
+      requestAnimationFrame(() => input.focus())
     },
   })
 }

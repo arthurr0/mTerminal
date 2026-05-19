@@ -335,7 +335,13 @@ function AppInner({
         const active = ws.tabs.find((t) => t.id === ws.activeId);
         return active?.groupId ?? null;
       },
-      setActiveGroup: () => {},
+      setActiveGroup: (id: string | null) => {
+        setGridGroupId(id);
+        setSoloTabId(null);
+      },
+      createGroup: (name: string, kind?: string) => {
+        return wsRef.current.addGroup(name, (kind ?? "custom") as never);
+      },
       tabs: () =>
         wsRef.current.tabs.map((t) => ({
           id: t.id,
@@ -343,6 +349,7 @@ function AppInner({
           title: t.label,
           groupId: t.groupId,
           active: t.id === wsRef.current.activeId,
+          kind: t.kind,
         })),
       cwd: () => {
         const ws = wsRef.current;
@@ -393,6 +400,19 @@ function AppInner({
         return id;
       },
       closeTab: (id: number) => wsRef.current.closeTab(id),
+      activateTab: (id: number) => {
+        const tab = wsRef.current.tabs.find((t) => t.id === id);
+        if (!tab) return;
+        setGridGroupId(tab.groupId);
+        setSoloTabId(null);
+        wsRef.current.setActive(id);
+      },
+      moveTabToGroup: (id: number, groupId: string | null) => {
+        wsRef.current.moveTab(id, groupId);
+      },
+      renameTab: (id: number, title: string) => {
+        wsRef.current.renameTab(id, title);
+      },
       active: () => {
         const ws = wsRef.current;
         const a = ws.tabs.find((t) => t.id === ws.activeId);
@@ -405,13 +425,34 @@ function AppInner({
           title: t.label,
           groupId: t.groupId,
           active: t.id === wsRef.current.activeId,
+          kind: t.kind,
         })),
-      onTabsChange: () => ({ dispose: () => {} }),
+      onTabsChange: (cb) => {
+        tabsChangeListenersRef.current.add(cb);
+        return { dispose: () => { tabsChangeListenersRef.current.delete(cb); } };
+      },
     });
     void bootExtensionsHostRenderer().catch((err) => {
       console.error("[extensions] boot failed:", err);
     });
   }, []);
+
+  const tabsChangeListenersRef = useRef<Set<(tabs: Array<{ id: number; type: string; title: string; groupId: string | null; active: boolean; kind: string }>) => void>>(new Set());
+  useEffect(() => {
+    const tabType = (t: { kind: string; customType?: string }): string =>
+      t.kind === "local" ? "terminal" : t.customType ?? "custom";
+    const snapshot = ws.tabs.map((t) => ({
+      id: t.id,
+      type: tabType(t),
+      title: t.label,
+      groupId: t.groupId,
+      active: t.id === ws.activeId,
+      kind: t.kind,
+    }));
+    for (const cb of tabsChangeListenersRef.current) {
+      try { cb(snapshot); } catch { /* ignore */ }
+    }
+  }, [ws.tabs, ws.activeId]);
 
   const [registeredTabTypes, setRegisteredTabTypes] = useState<Set<string>>(() => {
     const reg = getTabTypeRegistry();

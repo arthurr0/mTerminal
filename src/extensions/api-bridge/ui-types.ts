@@ -38,7 +38,15 @@ export interface UiApi {
     cancelLabel?: string
     danger?: boolean
   }): Promise<boolean>
-  prompt(opts: { title: string; message?: string; placeholder?: string; defaultValue?: string }): Promise<string | undefined>
+  prompt(opts: {
+    title: string
+    message?: string
+    placeholder?: string
+    defaultValue?: string
+    password?: boolean
+    confirmLabel?: string
+    cancelLabel?: string
+  }): Promise<string | undefined>
   toast(opts: ToastInputObject): void
 }
 
