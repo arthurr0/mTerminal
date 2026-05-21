@@ -564,8 +564,8 @@ export function Sidebar(props: Props) {
                   }}
                   onDragEnd={resetDrag}
                   onClick={(e) => {
-                    const tag = (e.target as HTMLElement).tagName;
-                    if (tag === "INPUT" || tag === "BUTTON") return;
+                    const el = e.target as HTMLElement;
+                    if (el.closest("input, button")) return;
                     if (editingGroupId === g.id) return;
                     onSelectGroup(g.id);
                   }}
@@ -596,7 +596,10 @@ export function Sidebar(props: Props) {
                   <button
                     className={`chevron ${g.collapsed ? "collapsed" : ""}`}
                     aria-label={g.collapsed ? "expand group" : "collapse group"}
-                    onClick={() => onToggleGroup(g.id)}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onToggleGroup(g.id);
+                    }}
                     title={g.collapsed ? "expand" : "collapse"}
                   >
                     <svg
