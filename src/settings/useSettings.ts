@@ -55,6 +55,7 @@ export interface Settings {
   aiAttachContext: boolean;
   aiExplainEnabled: boolean;
   claudeCodeDetectionEnabled: boolean;
+  agentAutoLabelEnabled: boolean;
   mcpServerEnabled: boolean;
   agentSoundEnabled: boolean;
   agentSoundType: AgentSoundType;
@@ -111,6 +112,7 @@ export const DEFAULT_SETTINGS: Settings = {
   aiAttachContext: true,
   aiExplainEnabled: true,
   claudeCodeDetectionEnabled: true,
+  agentAutoLabelEnabled: false,
   mcpServerEnabled: false,
   agentSoundEnabled: false,
   agentSoundType: "chime",

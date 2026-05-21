@@ -22,6 +22,7 @@ interface Props {
   isDragging?: boolean;
   onExit: (tabId: number) => void;
   onInfo?: (tabId: number, info: { cwd: string | null; cmd: string | null }) => void;
+  onTitle?: (tabId: number, title: string) => void;
   onPtyReady?: (tabId: number, ptyId: number) => void;
   onPtyClose?: (tabId: number) => void;
   onActivate?: (tabId: number) => void;
@@ -61,6 +62,7 @@ export function TerminalTab({
   isDragging,
   onExit,
   onInfo,
+  onTitle,
   onPtyReady,
   onPtyClose,
   onActivate,
@@ -88,6 +90,8 @@ export function TerminalTab({
   onExitRef.current = onExit;
   const onInfoRef = useRef(onInfo);
   onInfoRef.current = onInfo;
+  const onTitleRef = useRef(onTitle);
+  onTitleRef.current = onTitle;
   const onPtyReadyRef = useRef(onPtyReady);
   onPtyReadyRef.current = onPtyReady;
   const onPtyCloseRef = useRef(onPtyClose);
@@ -123,6 +127,11 @@ export function TerminalTab({
       scrollback,
       theme,
       smoothScrollDuration: 80,
+    });
+
+    term.onTitleChange((next) => {
+      titleRef.current = next;
+      onTitleRef.current?.(tabId, next);
     });
 
     const fit = new FitAddon();

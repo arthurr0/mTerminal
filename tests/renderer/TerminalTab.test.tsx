@@ -63,6 +63,7 @@ const { shimMock, fakeTerminals, fitMock, webLinksMock } = vi.hoisted(() => {
       this._onSelection = cb;
       return { dispose: () => {} };
     });
+    public onTitleChange = vi.fn(() => ({ dispose: () => {} }));
 
     constructor(opts: Record<string, unknown>) {
       this.options = { ...opts };
@@ -142,6 +143,7 @@ vi.mock("@xterm/xterm", () => {
       this._onSelection = cb;
       return { dispose: () => {} };
     });
+    public onTitleChange = vi.fn(() => ({ dispose: () => {} }));
 
     constructor(opts: Record<string, unknown>) {
       this.options = { ...opts };

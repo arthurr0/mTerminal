@@ -133,6 +133,12 @@ export function AIPanel({
               onChange={(b) => update("claudeCodeDetectionEnabled", b)}
             />
             <ToggleRow
+              label="Auto-rename agent tabs"
+              desc="While Claude Code works, show the title it reports plus its current activity; the original name returns when the session ends (requires 'Detect AI agent sessions')"
+              checked={settings.agentAutoLabelEnabled}
+              onChange={(b) => update("agentAutoLabelEnabled", b)}
+            />
+            <ToggleRow
               label="MCP server"
               desc={
                 settings.mcpServerEnabled && mcpStatus?.running && mcpStatus.socketPath

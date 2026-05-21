@@ -14,6 +14,7 @@ import { StatusBar } from "./components/StatusBar";
 import { VoiceIndicator } from "./components/VoiceIndicator";
 import { TerminalTab } from "./components/TerminalTab";
 import { GridTabToolbar } from "./components/GridTabToolbar";
+import { agentTabDisplay } from "./lib/agentLabel";
 import { GridResizers } from "./components/GridResizers";
 import { ContextMenu, type MenuItem } from "./components/ContextMenu";
 import { ConfirmDialog } from "./components/ConfirmDialog";
@@ -194,6 +195,22 @@ function AppInner({
       return n;
     });
     pendingCommandsRef.current.delete(tabId);
+    setTabTitles((m) => {
+      if (!m.has(tabId)) return m;
+      const n = new Map(m);
+      n.delete(tabId);
+      return n;
+    });
+  }, []);
+
+  const [tabTitles, setTabTitles] = useState<Map<number, string>>(new Map());
+  const handleTabTitle = useCallback((tabId: number, title: string) => {
+    setTabTitles((m) => {
+      if (m.get(tabId) === title) return m;
+      const n = new Map(m);
+      n.set(tabId, title);
+      return n;
+    });
   }, []);
 
   const agentStatuses = useAgentStatus(ptyMap, ws.activeId, {
@@ -1163,6 +1180,8 @@ function AppInner({
           width={uiState.sidebarWidth}
           onResize={(w) => updateUi("sidebarWidth", w)}
           agentStatuses={agentStatuses}
+          agentAutoLabel={settings.agentAutoLabelEnabled}
+          tabTitles={tabTitles}
         />
 
         <main className="term-main">
@@ -1211,10 +1230,23 @@ function AppInner({
                   : -1;
               const isDropTarget = isGridContext && dropTargetTabId === t.id;
               const isDragging = isGridContext && dragSourceTabId === t.id;
+              const gridCc = settings.agentAutoLabelEnabled
+                ? agentStatuses.get(t.id)
+                : undefined;
+              const gridOverlay = gridCc
+                ? agentTabDisplay(
+                    gridCc,
+                    { label: t.label, sub: t.sub },
+                    tabTitles.get(t.id),
+                  )
+                : null;
+              const gridEditing = editingTabId === t.id;
               const tabToolbar = showToolbar ? (
                 <GridTabToolbar
-                  label={t.label}
-                  sub={t.sub}
+                  label={
+                    gridOverlay && !gridEditing ? gridOverlay.label : t.label
+                  }
+                  sub={gridOverlay ? gridOverlay.sub : t.sub}
                   isSolo={isSolo}
                   onSolo={() => toggleSolo(t.id)}
                   onRename={() => setEditingTabId(t.id)}
@@ -1268,6 +1300,7 @@ function AppInner({
                   isDragging={isDragging}
                   onExit={(id) => ws.closeTab(id)}
                   onInfo={ws.updateTabInfo}
+                  onTitle={handleTabTitle}
                   onPtyReady={handlePtyReady}
                   onPtyClose={handlePtyClose}
                   onActivate={ws.setActive}

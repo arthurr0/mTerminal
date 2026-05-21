@@ -15,6 +15,7 @@ export interface AgentStatus {
   lastChangeMs: number;
   source?: AgentEventSource;
   detail?: { tool?: string; message?: string };
+  sessionActive?: boolean;
 }
 
 interface AgentEv {
@@ -25,6 +26,7 @@ interface AgentEv {
   lastChangeMs: number;
   source?: AgentEventSource;
   detail?: { tool?: string; message?: string };
+  sessionActive?: boolean;
 }
 
 interface AgentApi {
@@ -123,6 +125,7 @@ export function useAgentStatus(
           lastChangeMs: ev.lastChangeMs,
           source: ev.source,
           detail: ev.detail,
+          sessionActive: ev.sessionActive,
         });
         return next;
       });

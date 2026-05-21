@@ -19,6 +19,14 @@ export interface AgentStatus {
   lastChangeMs: number
   source?: AgentEventSource
   detail?: { tool?: string; message?: string }
+  /**
+   * True while the agent process is still attached to the tab — set on the
+   * first event of a session and only cleared when the agent actually exits
+   * (process gone → `watcher` done, or `session_end` → `shutdown` done).
+   * Stays true between turns so an auto-label persists after a turn finishes
+   * instead of reverting on the `done` decay.
+   */
+  sessionActive?: boolean
 }
 
 const THINKING_DECAY_MS = 30_000
@@ -30,6 +38,7 @@ interface TabRecord {
 }
 
 const records = new Map<number, TabRecord>()
+const live = new Map<number, boolean>()
 let getWin: () => BrowserWindow | null = () => null
 
 function emit(tabId: number, status: AgentStatus): void {
@@ -44,6 +53,7 @@ function clearDecay(rec: TabRecord): void {
 }
 
 function set(tabId: number, status: AgentStatus): void {
+  status = { ...status, sessionActive: live.get(tabId) ?? false }
   const prev = records.get(tabId)
   if (prev) clearDecay(prev)
   const rec: TabRecord = { status, decayTimer: null }
@@ -77,9 +87,19 @@ function handle(evt: AgentEvent): void {
   // Hook payloads carry sessionId — feed it into the rollout watcher so we
   // can route TurnAborted events back to the right tab.
   if (agent === 'codex') {
-    const sessionId = (detail as { sessionId?: string } | undefined)?.sessionId
+    const sessionId = (evt.detail as { sessionId?: string } | undefined)?.sessionId
     if (sessionId) recordCodexSession(sessionId, evt.tabId)
   }
+
+  // Track whether the agent process is still attached. A `done` from the
+  // process watcher (process vanished) or a `session_end` shutdown means the
+  // agent exited → end the session. Everything else (incl. a `Stop`/`done`
+  // hook between turns) keeps it alive so the auto-label sticks.
+  const exited =
+    (evt.event === 'done' || evt.event === 'idle') &&
+    (source === 'watcher' || source === 'shutdown')
+  if (exited) live.delete(evt.tabId)
+  else live.set(evt.tabId, true)
 
   switch (evt.event) {
     case 'session_start':
@@ -113,6 +133,7 @@ export function clearTabStatus(tabId: number): void {
   const rec = records.get(tabId)
   if (rec) clearDecay(rec)
   records.delete(tabId)
+  live.delete(tabId)
 }
 
 export function registerStatusTracker(getMainWin: () => BrowserWindow | null): void {

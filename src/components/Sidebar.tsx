@@ -8,6 +8,7 @@ import {
 } from "react";
 import type { Group, Tab } from "../hooks/useWorkspace";
 import type { AgentStatus } from "../hooks/useAgentStatus";
+import { agentTabDisplay } from "../lib/agentLabel";
 import { InlineEdit } from "./InlineEdit";
 import { PluginPanelSlot } from "../extensions/components/PluginPanelSlot";
 import {
@@ -57,6 +58,8 @@ interface Props {
   width: number;
   onResize: (w: number) => void;
   agentStatuses?: Map<number, AgentStatus>;
+  agentAutoLabel?: boolean;
+  tabTitles?: Map<number, string>;
 }
 
 type DropMark =
@@ -130,6 +133,8 @@ export function Sidebar(props: Props) {
     width,
     onResize,
     agentStatuses,
+    agentAutoLabel,
+    tabTitles,
   } = props;
 
   const onResizeStart = (e: RPointerEvent<HTMLDivElement>) => {
@@ -305,6 +310,13 @@ export function Sidebar(props: Props) {
     const isDragging = dragTabId === t.id;
     const cc = agentStatuses?.get(t.id);
     const ccClass = cc && cc.state !== "idle" ? `cc-tab-${cc.state}` : "";
+    const overlay =
+      agentAutoLabel && cc
+        ? agentTabDisplay(cc, { label: t.label, sub: t.sub }, tabTitles?.get(t.id))
+        : null;
+    const isEditing = editingTabId === t.id;
+    const displayLabel = overlay && !isEditing ? overlay.label : t.label;
+    const displaySub = overlay ? overlay.sub : t.sub;
     return (
       <Fragment key={t.id}>
         {showLineBefore && <div className="drop-line" />}
@@ -354,15 +366,15 @@ export function Sidebar(props: Props) {
           <span className="dot" aria-hidden="true" />
           <span className="label-block">
             <InlineEdit
-              value={t.label}
+              value={displayLabel}
               className="label-main"
-              editing={editingTabId === t.id}
+              editing={isEditing}
               setEditing={(b) => setEditingTabId(b ? t.id : null)}
               onCommit={(v) => onRenameTab(t.id, v)}
             />
-            {t.sub && t.sub !== t.label && (
-              <span className="label-sub" title={t.sub}>
-                {t.sub}
+            {displaySub && displaySub !== displayLabel && (
+              <span className="label-sub" title={displaySub}>
+                {displaySub}
               </span>
             )}
           </span>

@@ -119,7 +119,7 @@ const api = {
   },
   agent: {
     snapshot: (): Promise<
-      Array<[number, { state: 'idle' | 'thinking' | 'awaitingInput' | 'done'; agent: 'claude' | 'codex' | null; lastChangeMs: number; detail?: { tool?: string; message?: string } }]>
+      Array<[number, { state: 'idle' | 'thinking' | 'awaitingInput' | 'done'; agent: 'claude' | 'codex' | null; lastChangeMs: number; detail?: { tool?: string; message?: string }; sessionActive?: boolean }]>
     > => ipcRenderer.invoke('agent:status:snapshot'),
     onStatus: (
       cb: (ev: {
@@ -128,6 +128,7 @@ const api = {
         agent: 'claude' | 'codex' | null
         lastChangeMs: number
         detail?: { tool?: string; message?: string }
+        sessionActive?: boolean
       }) => void,
     ): (() => void) => {
       const listener = (_: unknown, ev: unknown): void =>
