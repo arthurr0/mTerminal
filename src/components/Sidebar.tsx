@@ -1,4 +1,4 @@
-import {
+import React, {
   Fragment,
   type DragEvent as RDragEvent,
   type PointerEvent as RPointerEvent,
@@ -12,6 +12,7 @@ import type { AgentStatus } from "../hooks/useAgentStatus";
 import { agentTabDisplay } from "../lib/agentLabel";
 import { InlineEdit } from "./InlineEdit";
 import { PluginPanelSlot } from "../extensions/components/PluginPanelSlot";
+import { getPanelRegistry } from "../extensions/registries/panels";
 import { ExtensionIcon } from "../extensions/components/ExtensionIcon";
 import {
   getWorkspaceSectionRegistry,
@@ -27,6 +28,162 @@ function useWorkspaceSections(): WorkspaceSectionEntry[] {
     return reg.subscribe(() => setSections(reg.list())).dispose;
   }, [reg]);
   return sections;
+}
+
+function useHasWorkspaceBottomPanel(): boolean {
+  const reg = getPanelRegistry();
+  const [has, setHas] = useState(
+    () => reg.list("workspace.bottom").length > 0,
+  );
+  useEffect(() => {
+    return reg.subscribe(() =>
+      setHas(reg.list("workspace.bottom").length > 0),
+    ).dispose;
+  }, [reg]);
+  return has;
+}
+
+const TOP_HEIGHT_KEY = "mt:sidebar:workspaceTopHeight";
+const PANE_MIN = 60;
+
+function readTopHeight(): number | null {
+  if (typeof localStorage === "undefined") return null;
+  const raw = localStorage.getItem(TOP_HEIGHT_KEY);
+  if (raw == null) return null;
+  const n = Number(raw);
+  return Number.isFinite(n) && n > 0 ? n : null;
+}
+
+function writeTopHeight(value: number | null): void {
+  if (typeof localStorage === "undefined") return;
+  if (value == null) localStorage.removeItem(TOP_HEIGHT_KEY);
+  else localStorage.setItem(TOP_HEIGHT_KEY, String(value));
+}
+
+function WorkspaceBottomSlot(): React.JSX.Element | null {
+  const hasPanel = useHasWorkspaceBottomPanel();
+  const paneRef = useRef<HTMLDivElement | null>(null);
+  const [topHeight, setTopHeight] = useState<number | null>(() =>
+    readTopHeight(),
+  );
+
+  useEffect(() => {
+    const pane = paneRef.current;
+    if (!pane) return;
+    const top = pane.parentElement?.querySelector(
+      ".term-side-pane-top",
+    ) as HTMLElement | null;
+    if (topHeight == null) {
+      if (top) {
+        top.style.flex = "";
+        top.style.height = "";
+      }
+      pane.style.flex = "";
+      pane.style.height = "";
+    } else {
+      if (top) {
+        top.style.flex = `0 0 ${topHeight}px`;
+        top.style.height = `${topHeight}px`;
+      }
+      pane.style.flex = "1 1 0";
+      pane.style.height = "";
+    }
+  }, [topHeight, hasPanel]);
+
+  useEffect(() => {
+    const pane = paneRef.current;
+    if (!hasPanel || !pane) {
+      document.documentElement.style.removeProperty("--mt-workspace-bottom-h");
+      return;
+    }
+    const update = (): void => {
+      const h = pane.getBoundingClientRect().height;
+      document.documentElement.style.setProperty(
+        "--mt-workspace-bottom-h",
+        `${Math.round(h)}px`,
+      );
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(pane);
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.removeProperty("--mt-workspace-bottom-h");
+    };
+  }, [hasPanel, topHeight]);
+
+  const onPointerDown = (e: RPointerEvent<HTMLDivElement>): void => {
+    const pane = paneRef.current;
+    if (!pane) return;
+    const top = pane.parentElement?.querySelector(
+      ".term-side-pane-top",
+    ) as HTMLElement | null;
+    if (!top) return;
+    e.preventDefault();
+    const startY = e.clientY;
+    const startTop = top.getBoundingClientRect().height;
+    const parent = pane.parentElement;
+    const parentH = parent
+      ? parent.getBoundingClientRect().height
+      : window.innerHeight;
+    const target = e.currentTarget;
+    try {
+      target.setPointerCapture(e.pointerId);
+    } catch {
+      /* ignore */
+    }
+    let lastTop = startTop;
+    const move = (ev: PointerEvent): void => {
+      const maxTop = Math.max(0, parentH - PANE_MIN);
+      const next = Math.max(
+        0,
+        Math.min(maxTop, startTop + (ev.clientY - startY)),
+      );
+      lastTop = next;
+      top.style.flex = `0 0 ${next}px`;
+      top.style.height = `${next}px`;
+      pane.style.flex = "1 1 0";
+      pane.style.height = "";
+    };
+    const up = (ev: PointerEvent): void => {
+      try {
+        target.releasePointerCapture(ev.pointerId);
+      } catch {
+        /* ignore */
+      }
+      document.removeEventListener("pointermove", move);
+      document.removeEventListener("pointerup", up);
+      document.body.classList.remove("resizing-workspace-bottom");
+      setTopHeight(lastTop);
+      writeTopHeight(lastTop);
+    };
+    document.body.classList.add("resizing-workspace-bottom");
+    document.addEventListener("pointermove", move);
+    document.addEventListener("pointerup", up);
+  };
+
+  const onDoubleClick = (): void => {
+    setTopHeight(null);
+    writeTopHeight(null);
+  };
+
+  if (!hasPanel) return null;
+  return (
+    <>
+      <div
+        className="term-side-pane-resize"
+        role="separator"
+        aria-label="resize workspace split"
+        aria-orientation="horizontal"
+        onPointerDown={onPointerDown}
+        onDoubleClick={onDoubleClick}
+        title="drag to resize · double-click to reset"
+      />
+      <div className="term-side-pane-bottom" ref={paneRef}>
+        <PluginPanelSlot location="workspace.bottom" />
+      </div>
+    </>
+  );
 }
 
 interface Props {
@@ -171,6 +328,25 @@ export function Sidebar(props: Props) {
   const sectionIds = new Set(workspaceSections.map((s) => s.id));
   const localTabs = tabs.filter((t) => !sectionIds.has(t.kind));
   const localGroups = groups.filter((g) => !sectionIds.has(g.kind));
+
+  const footRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    const foot = footRef.current;
+    if (!foot) return;
+    const update = (): void => {
+      document.documentElement.style.setProperty(
+        "--mt-side-foot-h",
+        `${Math.round(foot.getBoundingClientRect().height)}px`,
+      );
+    };
+    update();
+    const ro = new ResizeObserver(update);
+    ro.observe(foot);
+    return () => {
+      ro.disconnect();
+      document.documentElement.style.removeProperty("--mt-side-foot-h");
+    };
+  }, []);
 
   const [dragTabId, setDragTabId] = useState<number | null>(null);
   const [dragGroupId, setDragGroupId] = useState<string | null>(null);
@@ -755,7 +931,9 @@ export function Sidebar(props: Props) {
         </div>
 
         <div
-          className={`term-side-scroll term-side-scroll-${kind}`}
+          className={`term-side-scroll term-side-scroll-${kind}${
+            kind === "local" ? " term-side-scroll-split" : ""
+          }`}
           role="tablist"
           aria-orientation="vertical"
           onDragOver={(e) => {
@@ -776,49 +954,53 @@ export function Sidebar(props: Props) {
           }}
           onDrop={commitDrop}
         >
-          <div
-            className={`term-ungrouped ${
-              dropMark?.kind === "endOf" && dropMark.groupId === null
-                ? "drop-target"
-                : ""
-            } ${sectionUngrouped.length === 0 ? "empty" : ""}`}
-            onDragOver={(e) => handleSectionDragOver(e, null, sectionUngrouped)}
-            onDrop={commitDrop}
-          >
-            {sectionUngrouped.map((t) => renderTab(t, sectionUngrouped))}
-            {renderEndMarker(null)}
-            {sectionUngrouped.length === 0 && (
-              <div className="drop-hint">
-                {dragTabId != null
-                  ? "drop here to ungroup"
-                  : kind === "local"
-                    ? "ungrouped tabs"
-                    : `no ${label} tabs yet`}
+          <div className={kind === "local" ? "term-side-pane-top" : undefined}>
+            <div
+              className={`term-ungrouped ${
+                dropMark?.kind === "endOf" && dropMark.groupId === null
+                  ? "drop-target"
+                  : ""
+              } ${sectionUngrouped.length === 0 ? "empty" : ""}`}
+              onDragOver={(e) => handleSectionDragOver(e, null, sectionUngrouped)}
+              onDrop={commitDrop}
+            >
+              {sectionUngrouped.map((t) => renderTab(t, sectionUngrouped))}
+              {renderEndMarker(null)}
+              {sectionUngrouped.length === 0 && (
+                <div className="drop-hint">
+                  {dragTabId != null
+                    ? "drop here to ungroup"
+                    : kind === "local"
+                      ? "ungrouped tabs"
+                      : `no ${label} tabs yet`}
+                </div>
+              )}
+            </div>
+
+            {sectionGroups
+              .filter((g) => g.parentId == null)
+              .map((g) => renderGroup(g, 0, sectionGroups, sectionTabs))}
+
+            {groupDropMark?.kind === "end" &&
+              groupDropMark.parentId === null && (
+                <div
+                  className="drop-line group-drop-line"
+                  style={{
+                    ["--group-accent" as never]: `var(--c-${
+                      sectionGroups.find((g) => g.id === dragGroupId)?.accent ?? "orange"
+                    })`,
+                  }}
+                />
+              )}
+
+            {sectionGroups.length === 0 && sectionUngrouped.length > 0 && (
+              <div className="term-empty-groups">
+                tip — click <span className="kbd">+ group</span> to organize tabs
               </div>
             )}
           </div>
 
-          {sectionGroups
-            .filter((g) => g.parentId == null)
-            .map((g) => renderGroup(g, 0, sectionGroups, sectionTabs))}
-
-          {groupDropMark?.kind === "end" &&
-            groupDropMark.parentId === null && (
-              <div
-                className="drop-line group-drop-line"
-                style={{
-                  ["--group-accent" as never]: `var(--c-${
-                    sectionGroups.find((g) => g.id === dragGroupId)?.accent ?? "orange"
-                  })`,
-                }}
-              />
-            )}
-
-          {sectionGroups.length === 0 && sectionUngrouped.length > 0 && (
-            <div className="term-empty-groups">
-              tip — click <span className="kbd">+ group</span> to organize tabs
-            </div>
-          )}
+          {kind === "local" && <WorkspaceBottomSlot />}
 
         </div>
       </Fragment>
@@ -865,9 +1047,11 @@ export function Sidebar(props: Props) {
 
       {/* Extension-contributed sidebar panels (e.g. the Git Panel extension). */}
       <PluginPanelSlot location="sidebar" />
-      <PluginPanelSlot location="sidebar.bottom" />
+      <div className="term-side-sidebar-bottom">
+        <PluginPanelSlot location="sidebar.bottom" />
+      </div>
 
-      <div className="term-side-foot">
+      <div className="term-side-foot" ref={footRef}>
         <button className="settings-btn" onClick={onOpenSettings}>
           <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
             <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.5" />

@@ -241,6 +241,26 @@ a,
   flex-direction: column;
   min-height: 0;
   position: relative;
+  overflow: hidden;
+}
+.term-side > .ext-panel-container {
+  flex: 0 1 auto;
+  min-height: 0;
+  max-height: calc(100% - var(--mt-workspace-bottom-h, 0px) - var(--mt-side-foot-h, 0px) - 140px);
+  overflow: hidden;
+}
+.term-side-sidebar-bottom {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: var(--mt-side-foot-h, 0px);
+  z-index: 10;
+  max-height: calc(100% - var(--mt-side-foot-h, 0px));
+  background: var(--bg-side, var(--bg, transparent));
+  pointer-events: auto;
+}
+.term-side-sidebar-bottom:empty {
+  display: none;
 }
 
 .term-side-resize {
@@ -338,6 +358,66 @@ body.resizing-sidebar * {
   min-height: 0;
   display: flex;
   flex-direction: column;
+}
+
+.term-side-scroll-split {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.term-side-scroll-split .term-side-pane-top {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding-bottom: 4px;
+}
+.term-side-scroll-split .term-side-pane-top::-webkit-scrollbar { width: 8px; }
+.term-side-scroll-split .term-side-pane-top::-webkit-scrollbar-track { background: transparent; }
+.term-side-scroll-split .term-side-pane-top::-webkit-scrollbar-thumb { background: var(--n-250); border-radius: 4px; }
+.term-side-scroll-split .term-side-pane-top::-webkit-scrollbar-thumb:hover { background: var(--n-300); }
+.term-side-scroll-split .term-side-pane-bottom {
+  flex: 0 0 auto;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  border-top: 1px solid var(--border-subtle);
+  overflow: hidden;
+}
+.term-side-scroll-split .term-side-pane-bottom .ext-panel-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}
+.term-side-pane-resize {
+  flex: 0 0 auto;
+  height: 7px;
+  margin: -3px 0;
+  cursor: ns-resize;
+  z-index: 5;
+  background: transparent;
+  transition: background 120ms ease;
+  position: relative;
+  user-select: none;
+}
+.term-side-pane-resize:hover,
+body.resizing-workspace-bottom .term-side-pane-resize {
+  background: var(--accent);
+  opacity: 0.35;
+}
+.term-side-pane-resize:hover,
+body.resizing-workspace-bottom .term-side-pane-resize {
+  background: var(--accent);
+  opacity: 0.35;
+}
+body.resizing-workspace-bottom {
+  cursor: ns-resize;
+  user-select: none;
+}
+body.resizing-workspace-bottom * {
+  user-select: none;
 }
 
 /* ── group ───────────────────────────────────────────────── */

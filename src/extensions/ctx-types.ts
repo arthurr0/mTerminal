@@ -41,6 +41,7 @@ export interface PanelSpec {
     | 'sidebar'
     | 'sidebar.bottom'
     | 'bottombar'
+    | 'workspace.bottom'
     | `workspace-section.${string}`
   initialCollapsed?: boolean
   render(host: HTMLElement, panelCtx: PanelCtx): void | (() => void)
