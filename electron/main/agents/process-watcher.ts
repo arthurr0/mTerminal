@@ -12,7 +12,8 @@
  * if the user hasn't installed hooks yet) we poll `pidtree` for AI CLI
  * descendants and synthesize:
  *
- *    - process appears  → `thinking` event
+ *    - process appears  → `session_start` event (ready → idle; only when no
+ *      hook/MCP source is already live for the tab, so we never clobber it)
  *    - process disappears (with no replacement) → `done`
  *
  * The interval is intentionally low-frequency (2s) — we're catching launches
@@ -26,6 +27,7 @@ import { promisify } from 'node:util'
 import pidtree from 'pidtree'
 import { agentBridge, type AgentEvent } from './bridge-server'
 import { listSessionIds, sessionPid } from '../sessions'
+import { isLive } from './status-tracker'
 
 const execFileP = promisify(execFile)
 
@@ -113,16 +115,10 @@ async function tick(): Promise<void> {
     const prev = lastSeen.get(tabId) ?? null
 
     if (agent && !prev) {
-      // Newly appeared.
-      emit(tabId, agent, 'thinking')
+      if (!isLive(tabId)) emit(tabId, agent, 'session_start')
     } else if (!agent && prev) {
-      // Just disappeared.
       emit(tabId, prev, 'done')
     }
-    // If `prev === agent`, no transition; the hook stream (for Claude) keeps
-    // refreshing the state with finer-grained events. For Codex, the dot
-    // stays "thinking" until the process exits — that's the trade-off of
-    // not having native hooks.
 
     if (agent) lastSeen.set(tabId, agent)
     else lastSeen.delete(tabId)

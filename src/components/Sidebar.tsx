@@ -386,7 +386,9 @@ export function Sidebar(props: Props) {
                 ? "◐"
                 : cc.state === "awaitingInput"
                   ? "!"
-                  : "✓";
+                  : cc.state === "ready"
+                    ? "•"
+                    : "✓";
             const title = `${cc.agent ?? "agent"}: ${cc.state}`;
             return (
               <span

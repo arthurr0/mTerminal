@@ -249,6 +249,12 @@ export function spawnSession(opts: {
     if (bus) bus.emit('app:terminal:exit', { ptyId: id })
     SESSIONS.delete(id)
     WSL_INFO_CACHE.delete(id)
+    try {
+      const { clearTabStatus } = require('./agents/status-tracker') as typeof import('./agents/status-tracker')
+      clearTabStatus(id)
+    } catch {
+      /* tracker optional */
+    }
   })
 
   return id

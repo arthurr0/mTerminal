@@ -562,6 +562,16 @@ body.resizing-sidebar * {
   color: #7ec97e;
   background: color-mix(in oklch, #7ec97e 18%, transparent);
 }
+.cc-badge.cc-ready {
+  color: #7ec97e;
+  background: color-mix(in oklch, #7ec97e 18%, transparent);
+  animation: cc-ready-fade 1.2s ease-out 1;
+}
+@keyframes cc-ready-fade {
+  0%   { opacity: 0.4; transform: scale(0.8); }
+  35%  { opacity: 1; transform: scale(1); }
+  100% { opacity: 0.85; transform: scale(1); }
+}
 .cc-badge.cc-group-badge {
   width: auto;
   min-width: 16px;
@@ -847,6 +857,11 @@ body.resizing-sidebar * {
   background: var(--c-green, #89b482);
   box-shadow: 0 0 0 2px color-mix(in oklch, var(--c-green, #89b482) 50%, transparent);
   animation: cc-done-flash 0.6s ease-out 4;
+}
+.term-tab.cc-tab-ready .dot {
+  background: var(--c-green, #89b482);
+  box-shadow: 0 0 0 2px color-mix(in oklch, var(--c-green, #89b482) 40%, transparent);
+  animation: cc-done-flash 0.6s ease-out 2;
 }
 @keyframes cc-done-flash {
   0% { box-shadow: 0 0 0 2px color-mix(in oklch, var(--c-green, #89b482) 80%, transparent); }

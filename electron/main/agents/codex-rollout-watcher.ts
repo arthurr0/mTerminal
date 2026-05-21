@@ -107,7 +107,7 @@ async function readNewLines(file: string): Promise<void> {
   }
 }
 
-function handleEntry(entry: RolloutEntry): void {
+export function handleEntry(entry: RolloutEntry): void {
   // Codex's rollout format wraps EventMsg variants. Tolerate both shallow
   // and nested shapes — the format has been refactored across versions.
   const sessionId =
@@ -134,4 +134,5 @@ function handleEntry(entry: RolloutEntry): void {
     detail: { message: '(turn aborted)' },
   }
   agentBridge.emit('event', evt)
+  if (sessionId) sessionToTab.delete(sessionId)
 }

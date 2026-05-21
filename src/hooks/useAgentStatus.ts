@@ -6,7 +6,7 @@ import {
 } from "../lib/ipc";
 import { playAgentSound, type AgentSoundType } from "../lib/agentSound";
 
-export type AgentState = "idle" | "thinking" | "awaitingInput" | "done";
+export type AgentState = "idle" | "ready" | "thinking" | "awaitingInput" | "done";
 export type AgentEventSource = "hook" | "watcher" | "shutdown";
 
 export interface AgentStatus {

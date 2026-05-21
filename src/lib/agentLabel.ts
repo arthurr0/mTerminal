@@ -30,6 +30,7 @@ export function cleanTitle(title: string): string {
 export function agentActivityLabel(status: AgentStatus): string {
   if (status.state === "awaitingInput") return "waiting";
   if (status.state === "done") return "done";
+  if (status.state === "ready") return "ready";
   if (status.state === "idle") return "idle";
   const tool = status.detail?.tool;
   if (!tool) return "thinking";

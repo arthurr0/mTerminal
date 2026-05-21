@@ -1,9 +1,10 @@
-import { describe, it, expect, beforeAll, afterEach } from "vitest";
+import { describe, it, expect, beforeAll, afterEach, vi } from "vitest";
 import { agentBridge, type AgentEvent } from "../../electron/main/agents/bridge-server";
 import {
   registerStatusTracker,
   snapshotStatuses,
   clearTabStatus,
+  isLive,
 } from "../../electron/main/agents/status-tracker";
 
 beforeAll(() => {
@@ -54,5 +55,122 @@ describe("status-tracker session liveness", () => {
     emit({ tabId: 9102, event: "thinking" });
     emit({ tabId: 9102, event: "done", source: "shutdown" });
     expect(statusOf(9102)?.sessionActive).toBe(false);
+  });
+});
+
+describe("status-tracker session_start mapping", () => {
+  afterEach(() => {
+    clearTabStatus(9201);
+  });
+
+  it("maps session_start to ready, not thinking", () => {
+    emit({ tabId: 9201, event: "session_start" });
+    expect(statusOf(9201)?.state).toBe("ready");
+  });
+
+  it("marks the session active on session_start", () => {
+    emit({ tabId: 9201, event: "session_start" });
+    expect(statusOf(9201)?.sessionActive).toBe(true);
+  });
+});
+
+describe("status-tracker decay timers", () => {
+  beforeAll(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    clearTabStatus(9301);
+    vi.clearAllTimers();
+  });
+
+  it("decays ready to idle after the ready flash", () => {
+    emit({ tabId: 9301, event: "session_start" });
+    expect(statusOf(9301)?.state).toBe("ready");
+    vi.advanceTimersByTime(1_200);
+    expect(statusOf(9301)?.state).toBe("idle");
+  });
+
+  it("never gets stuck on thinking after session_start (/clear regression)", () => {
+    emit({ tabId: 9301, event: "session_start" });
+    vi.advanceTimersByTime(300_000);
+    expect(statusOf(9301)?.state).toBe("idle");
+  });
+
+  it("keeps a long real turn on thinking before the 5-min backstop", () => {
+    emit({ tabId: 9301, event: "thinking" });
+    vi.advanceTimersByTime(299_000);
+    expect(statusOf(9301)?.state).toBe("thinking");
+  });
+
+  it("fires the thinking backstop after 5 minutes", () => {
+    emit({ tabId: 9301, event: "thinking" });
+    vi.advanceTimersByTime(300_000);
+    expect(statusOf(9301)?.state).toBe("idle");
+  });
+
+  it("refreshes the backstop on intervening tool events", () => {
+    emit({ tabId: 9301, event: "thinking" });
+    vi.advanceTimersByTime(250_000);
+    emit({ tabId: 9301, event: "tool_use" });
+    vi.advanceTimersByTime(250_000);
+    expect(statusOf(9301)?.state).toBe("thinking");
+    vi.advanceTimersByTime(60_000);
+    expect(statusOf(9301)?.state).toBe("idle");
+  });
+
+  it("flashes done then decays to idle after 3 seconds", () => {
+    emit({ tabId: 9301, event: "thinking" });
+    emit({ tabId: 9301, event: "done", source: "hook" });
+    expect(statusOf(9301)?.state).toBe("done");
+    vi.advanceTimersByTime(3_000);
+    expect(statusOf(9301)?.state).toBe("idle");
+  });
+});
+
+describe("status-tracker isLive", () => {
+  afterEach(() => {
+    clearTabStatus(9501);
+  });
+
+  it("is false for an unknown tab", () => {
+    expect(isLive(9501)).toBe(false);
+  });
+
+  it("is true once an agent event arrives and false after a watcher exit", () => {
+    emit({ tabId: 9501, event: "session_start" });
+    expect(isLive(9501)).toBe(true);
+    emit({ tabId: 9501, event: "done", source: "watcher" });
+    expect(isLive(9501)).toBe(false);
+  });
+
+  it("is false after clearTabStatus", () => {
+    emit({ tabId: 9501, event: "thinking" });
+    clearTabStatus(9501);
+    expect(isLive(9501)).toBe(false);
+  });
+});
+
+describe("status-tracker cleanup", () => {
+  beforeAll(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    clearTabStatus(9401);
+    vi.clearAllTimers();
+  });
+
+  it("removes the record on clearTabStatus", () => {
+    emit({ tabId: 9401, event: "thinking" });
+    clearTabStatus(9401);
+    expect(statusOf(9401)).toBeUndefined();
+  });
+
+  it("cancels a pending decay timer on clearTabStatus", () => {
+    emit({ tabId: 9401, event: "thinking" });
+    clearTabStatus(9401);
+    vi.advanceTimersByTime(300_000);
+    expect(statusOf(9401)).toBeUndefined();
   });
 });

@@ -11,7 +11,7 @@ import { ipcMain, type BrowserWindow } from 'electron'
 import { agentBridge, type AgentEvent, type AgentEventSource } from './bridge-server'
 import { recordCodexSession } from './codex-rollout-watcher'
 
-export type AgentState = 'idle' | 'thinking' | 'awaitingInput' | 'done'
+export type AgentState = 'idle' | 'ready' | 'thinking' | 'awaitingInput' | 'done'
 
 export interface AgentStatus {
   state: AgentState
@@ -29,7 +29,8 @@ export interface AgentStatus {
   sessionActive?: boolean
 }
 
-const THINKING_DECAY_MS = 30_000
+const THINKING_DECAY_MS = 300_000
+const READY_FLASH_MS = 1_200
 const DONE_FLASH_MS = 3_000
 
 interface TabRecord {
@@ -73,6 +74,13 @@ function set(tabId: number, status: AgentStatus): void {
         set(tabId, { ...status, state: 'idle', lastChangeMs: Date.now() })
       }
     }, DONE_FLASH_MS)
+  } else if (status.state === 'ready') {
+    rec.decayTimer = setTimeout(() => {
+      const cur = records.get(tabId)
+      if (cur && cur.status === status) {
+        set(tabId, { ...status, state: 'idle', lastChangeMs: Date.now() })
+      }
+    }, READY_FLASH_MS)
   }
 
   emit(tabId, status)
@@ -103,7 +111,7 @@ function handle(evt: AgentEvent): void {
 
   switch (evt.event) {
     case 'session_start':
-      set(evt.tabId, { state: 'thinking', agent, lastChangeMs: ts, source, detail })
+      set(evt.tabId, { state: 'ready', agent, lastChangeMs: ts, source, detail })
       return
     case 'thinking':
     case 'tool_use':
@@ -127,6 +135,10 @@ function handle(evt: AgentEvent): void {
 
 export function snapshotStatuses(): Array<[number, AgentStatus]> {
   return [...records.entries()].map(([k, v]) => [k, v.status])
+}
+
+export function isLive(tabId: number): boolean {
+  return live.get(tabId) ?? false
 }
 
 export function clearTabStatus(tabId: number): void {
