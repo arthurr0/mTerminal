@@ -18,6 +18,7 @@ export { getKeybindingRegistry, setKeybindingWhenEvaluator } from './registries/
 export { getPanelRegistry } from './registries/panels'
 export { getStatusBarRegistry } from './registries/status-bar'
 export { getContextMenuRegistry } from './registries/context-menu'
+export { getGroupMenuRegistry } from './registries/group-menu'
 export { getTabTypeRegistry } from './registries/tab-types'
 export { getDecoratorRegistry } from './registries/decorators'
 export { getThemeRegistry } from './registries/themes'

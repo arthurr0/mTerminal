@@ -17,6 +17,8 @@ import { GridTabToolbar } from "./components/GridTabToolbar";
 import { agentTabDisplay } from "./lib/agentLabel";
 import { GridResizers } from "./components/GridResizers";
 import { ContextMenu, type MenuItem } from "./components/ContextMenu";
+import { mapGroupItemsToMenu } from "./components/GroupMenuExt";
+import { getGroupMenuRegistry } from "./extensions/registries/group-menu";
 import { ConfirmDialog } from "./components/ConfirmDialog";
 import { useWorkspace, collectDescendantGroupIds } from "./hooks/useWorkspace";
 import { ColorPicker } from "./components/ColorPicker";
@@ -1092,6 +1094,28 @@ function AppInner({
       { label: "", onSelect: () => {}, separator: true },
       ...buildDeleteGroupMenuItems(id),
     ];
+
+    if (group) {
+      const onClose = () => setCtx(null);
+      const extItems = getGroupMenuRegistry().collect({
+        id: group.id,
+        label: group.name,
+      });
+      if (extItems.length > 0) {
+        const mapped = mapGroupItemsToMenu(extItems, onClose);
+        const sepIdx = items.findIndex(
+          (it, i) => i > 0 && it.separator && items[i - 1]?.label === "change color",
+        );
+        const insertAt = sepIdx >= 0 ? sepIdx : items.length;
+        items.splice(
+          insertAt,
+          0,
+          { label: "", onSelect: () => {}, separator: true },
+          ...mapped,
+        );
+      }
+    }
+
     setCtx({ x, y, items });
   };
 

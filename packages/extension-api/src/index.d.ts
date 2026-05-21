@@ -753,6 +753,31 @@ export interface MainExtIpc {
 
 // Workspace ───────────────────────────────────────────────────────────────────
 
+/**
+ * Item contributed by an extension to a workspace-group right-click menu.
+ *
+ * @since mterminal-api 1.7.0
+ */
+export type GroupMenuItemSpec =
+  | {
+      kind: 'item'
+      label: string
+      onSelect(): void
+      danger?: boolean
+      disabled?: boolean
+    }
+  | { kind: 'separator' }
+  | { kind: 'submenu'; label: string; items: GroupMenuItemSpec[] }
+  | {
+      kind: 'custom'
+      label: string
+      /**
+       * Mount any DOM/React/markup inside `host`. Optionally return a
+       * cleanup function that runs when the menu closes.
+       */
+      render(host: HTMLElement): void | (() => void)
+    }
+
 export interface WorkspaceApi {
   groups(): Array<{ id: string; label: string }>
   activeGroup(): string | null
@@ -769,6 +794,18 @@ export interface WorkspaceApi {
    * @since mterminal-api 1.6.0
    */
   readonly sections: WorkspaceSectionsApi
+  /**
+   * Register a provider that contributes items to the workspace-group
+   * right-click context menu. The provider is invoked on every menu open
+   * with the target group, and its returned items are appended after the
+   * core actions. Supports plain items, separators, nested submenus, and
+   * `custom` items that render arbitrary DOM into a host element.
+   *
+   * @since mterminal-api 1.7.0
+   */
+  registerGroupMenuProvider(
+    provider: (group: { id: string; label: string }) => GroupMenuItemSpec[],
+  ): Disposable
 }
 
 export interface WorkspaceSection {

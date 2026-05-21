@@ -8,6 +8,7 @@
 
 import type { Disposable, WorkspaceApi } from '../ctx-types'
 import { getWorkspaceSectionRegistry } from '../registries/workspace-sections'
+import { getGroupMenuRegistry } from '../registries/group-menu'
 
 export interface WorkspaceTab {
   id: number
@@ -84,5 +85,7 @@ export function createWorkspaceBridge(extId: string): WorkspaceApi {
             allowNewGroup,
           })),
     },
+    registerGroupMenuProvider: (provider) =>
+      getGroupMenuRegistry().register(provider, extId),
   }
 }

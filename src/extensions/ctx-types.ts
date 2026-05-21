@@ -309,6 +309,12 @@ export interface TerminalApi {
   list(): TerminalHandle[]
 }
 
+export type GroupMenuItemSpec =
+  | { kind: 'item'; label: string; onSelect(): void; danger?: boolean; disabled?: boolean }
+  | { kind: 'separator' }
+  | { kind: 'submenu'; label: string; items: GroupMenuItemSpec[] }
+  | { kind: 'custom'; label: string; render(host: HTMLElement): void | (() => void) }
+
 export interface WorkspaceApi {
   groups(): Array<{ id: string; label: string }>
   activeGroup(): string | null
@@ -317,6 +323,9 @@ export interface WorkspaceApi {
   tabs(groupId?: string): Array<{ id: number; type: string; title: string; groupId: string | null; active: boolean }>
   cwd(): string | null
   readonly sections: WorkspaceSectionsApi
+  registerGroupMenuProvider(
+    provider: (group: { id: string; label: string }) => GroupMenuItemSpec[],
+  ): Disposable
 }
 
 export interface WorkspaceSection {

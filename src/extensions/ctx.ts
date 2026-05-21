@@ -48,6 +48,7 @@ import { getTabTypeRegistry } from './registries/tab-types'
 import { getDecoratorRegistry } from './registries/decorators'
 import { getThemeRegistry } from './registries/themes'
 import { getWorkspaceSectionRegistry } from './registries/workspace-sections'
+import { getGroupMenuRegistry } from './registries/group-menu'
 import { getRendererEventBus } from './event-bus'
 import { createGlobalState, createWorkspaceState } from './kv-store'
 import { getServiceRegistry } from './services'
@@ -105,6 +106,7 @@ export function createRendererCtx(manifest: NormalizedManifest): CreateCtxResult
   const decReg = getDecoratorRegistry()
   const themeReg = getThemeRegistry()
   const wsSectionReg = getWorkspaceSectionRegistry()
+  const gmReg = getGroupMenuRegistry()
   const bus = getRendererEventBus()
   const settingsBackend = getSettingsBackend()
   const wsBackend = getWorkspaceBackend()
@@ -459,6 +461,7 @@ export function createRendererCtx(manifest: NormalizedManifest): CreateCtxResult
     decReg.removeBySource(id)
     themeReg.removeBySource(id)
     wsSectionReg.removeBySource(id)
+    gmReg.removeBySource(id)
   }
 
   return { ctx, dispose }
