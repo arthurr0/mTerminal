@@ -67,6 +67,54 @@ export interface Group {
   defaultCwd?: string;
   /** Workspace section id this group lives under (`'local'` by default). */
   kind: GroupKind;
+  /** Parent group id for nested groups (`null` = top-level). */
+  parentId: string | null;
+}
+
+export function isDescendantGroup(
+  groups: Group[],
+  ancestorId: string,
+  candidateId: string,
+): boolean {
+  if (ancestorId === candidateId) return true;
+  const byId = new Map(groups.map((g) => [g.id, g]));
+  let cur: Group | undefined = byId.get(candidateId);
+  const seen = new Set<string>();
+  while (cur && cur.parentId) {
+    if (seen.has(cur.parentId)) return false;
+    seen.add(cur.parentId);
+    if (cur.parentId === ancestorId) return true;
+    cur = byId.get(cur.parentId);
+  }
+  return false;
+}
+
+export function collectDescendantGroupIds(
+  groups: Group[],
+  rootId: string,
+): Set<string> {
+  const childrenOf = new Map<string, string[]>();
+  for (const g of groups) {
+    if (g.parentId) {
+      const arr = childrenOf.get(g.parentId);
+      if (arr) arr.push(g.id);
+      else childrenOf.set(g.parentId, [g.id]);
+    }
+  }
+  const out = new Set<string>([rootId]);
+  const stack = [rootId];
+  while (stack.length) {
+    const cur = stack.pop()!;
+    const kids = childrenOf.get(cur);
+    if (!kids) continue;
+    for (const k of kids) {
+      if (!out.has(k)) {
+        out.add(k);
+        stack.push(k);
+      }
+    }
+  }
+  return out;
 }
 
 export interface WorkspaceState {
@@ -146,6 +194,7 @@ function loadInitial(): WorkspaceState {
       ) {
         const groups: Group[] = parsed.groups.map((g, i) => {
           const rawKind = (g as { kind?: unknown }).kind;
+          const rawParent = (g as { parentId?: unknown }).parentId;
           return {
             id: g.id!,
             name: g.name || "group",
@@ -156,9 +205,11 @@ function loadInitial(): WorkspaceState {
                 ? g.defaultCwd
                 : undefined,
             kind: typeof rawKind === "string" && rawKind.length > 0 ? rawKind : "local",
+            parentId: typeof rawParent === "string" ? rawParent : null,
           };
         });
         const groupIds = new Set(groups.map((g) => g.id));
+        sanitizeGroupParents(groups, groupIds);
         const tabs: Tab[] = parsed.tabs
           .map((t) => {
             const rawKind = (t as { kind?: unknown }).kind;
@@ -220,6 +271,31 @@ function loadInitial(): WorkspaceState {
     nextTabId: firstId + 1,
     groupLayouts: {},
   };
+}
+
+function sanitizeGroupParents(groups: Group[], groupIds: Set<string>): void {
+  for (const g of groups) {
+    if (g.parentId != null && !groupIds.has(g.parentId)) g.parentId = null;
+  }
+  const byId = new Map(groups.map((g) => [g.id, g]));
+  for (const g of groups) {
+    const seen = new Set<string>([g.id]);
+    let cur: Group | undefined = g.parentId ? byId.get(g.parentId) : undefined;
+    while (cur) {
+      if (seen.has(cur.id)) {
+        g.parentId = null;
+        break;
+      }
+      seen.add(cur.id);
+      cur = cur.parentId ? byId.get(cur.parentId) : undefined;
+    }
+  }
+  for (const g of groups) {
+    if (g.parentId != null) {
+      const parent = byId.get(g.parentId);
+      if (parent && parent.kind !== g.kind) g.parentId = null;
+    }
+  }
 }
 
 function sanitizeGroupLayouts(
@@ -553,26 +629,38 @@ export function useWorkspace() {
     [],
   );
 
-  const addGroup = useCallback((name?: string, kind: GroupKind = "local"): string => {
-    const id = `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
-    setState((s) => {
-      const sameKindCount = s.groups.filter((g) => g.kind === kind).length;
-      return {
-        ...s,
-        groups: [
-          ...s.groups,
-          {
-            id,
-            name: name || `group ${sameKindCount + 1}`,
-            collapsed: false,
-            accent: pickDefaultAccent(s.groups.length),
-            kind,
-          },
-        ],
-      };
-    });
-    return id;
-  }, []);
+  const addGroup = useCallback(
+    (
+      name?: string,
+      kind: GroupKind = "local",
+      parentId: string | null = null,
+    ): string => {
+      const id = `g_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+      setState((s) => {
+        const parent = parentId
+          ? s.groups.find((g) => g.id === parentId && g.kind === kind)
+          : null;
+        const effectiveParent = parent ? parent.id : null;
+        const sameKindCount = s.groups.filter((g) => g.kind === kind).length;
+        return {
+          ...s,
+          groups: [
+            ...s.groups,
+            {
+              id,
+              name: name || `group ${sameKindCount + 1}`,
+              collapsed: false,
+              accent: pickDefaultAccent(s.groups.length),
+              kind,
+              parentId: effectiveParent,
+            },
+          ],
+        };
+      });
+      return id;
+    },
+    [],
+  );
 
   const updateGroup = useCallback(
     (id: string, patch: (g: Group) => Partial<Group>) => {
@@ -608,37 +696,95 @@ export function useWorkspace() {
     [updateGroup],
   );
 
-  const reorderGroup = useCallback((id: string, beforeId: string | null) => {
-    setState((s) => {
-      const group = s.groups.find((g) => g.id === id);
-      if (!group || beforeId === id) return s;
+  const reorderGroup = useCallback(
+    (
+      id: string,
+      beforeId: string | null,
+      parentId: string | null = null,
+    ) => {
+      setState((s) => {
+        const group = s.groups.find((g) => g.id === id);
+        if (!group || beforeId === id) return s;
+        if (parentId != null && isDescendantGroup(s.groups, id, parentId)) {
+          return s;
+        }
+        const parent = parentId
+          ? s.groups.find((g) => g.id === parentId && g.kind === group.kind)
+          : null;
+        const effectiveParent = parent ? parent.id : null;
 
-      const without = s.groups.filter((g) => g.id !== id);
-      let insertAt =
-        beforeId == null
-          ? without.length
-          : without.findIndex((g) => g.id === beforeId);
-      if (insertAt < 0) insertAt = without.length;
+        const updated: Group = { ...group, parentId: effectiveParent };
+        const without = s.groups.filter((g) => g.id !== id);
 
-      const groups = [
-        ...without.slice(0, insertAt),
-        group,
-        ...without.slice(insertAt),
-      ];
-      const unchanged = groups.every((g, i) => g.id === s.groups[i]?.id);
-      return unchanged ? s : { ...s, groups };
-    });
-  }, []);
+        let insertAt: number;
+        if (beforeId == null) {
+          let lastIdx = -1;
+          without.forEach((g, i) => {
+            if (g.parentId === effectiveParent && g.kind === group.kind) {
+              lastIdx = i;
+            }
+          });
+          insertAt = lastIdx >= 0 ? lastIdx + 1 : without.length;
+        } else {
+          insertAt = without.findIndex((g) => g.id === beforeId);
+          if (insertAt < 0) insertAt = without.length;
+        }
 
-  const deleteGroup = useCallback((id: string) => {
-    setState((s) => ({
-      ...s,
-      groups: s.groups.filter((g) => g.id !== id),
-      tabs: s.tabs.map((t) =>
-        t.groupId === id ? { ...t, groupId: null } : t,
-      ),
-    }));
-  }, []);
+        const groups = [
+          ...without.slice(0, insertAt),
+          updated,
+          ...without.slice(insertAt),
+        ];
+        const unchanged =
+          groups.length === s.groups.length &&
+          groups.every(
+            (g, i) =>
+              g.id === s.groups[i]?.id && g.parentId === s.groups[i]?.parentId,
+          );
+        return unchanged ? s : { ...s, groups };
+      });
+    },
+    [],
+  );
+
+  const deleteGroup = useCallback(
+    (id: string, mode: "reparent" | "recursive" = "reparent") => {
+      setState((s) => {
+        const target = s.groups.find((g) => g.id === id);
+        if (!target) return s;
+
+        if (mode === "recursive") {
+          const doomed = collectDescendantGroupIds(s.groups, id);
+          return {
+            ...s,
+            groups: s.groups.filter((g) => !doomed.has(g.id)),
+            tabs: s.tabs.filter((t) =>
+              t.groupId == null ? true : !doomed.has(t.groupId),
+            ),
+            activeId:
+              s.activeId != null &&
+              s.tabs.find(
+                (t) => t.id === s.activeId && t.groupId != null && doomed.has(t.groupId),
+              )
+                ? null
+                : s.activeId,
+          };
+        }
+
+        const newParent = target.parentId;
+        return {
+          ...s,
+          groups: s.groups
+            .filter((g) => g.id !== id)
+            .map((g) => (g.parentId === id ? { ...g, parentId: newParent } : g)),
+          tabs: s.tabs.map((t) =>
+            t.groupId === id ? { ...t, groupId: newParent } : t,
+          ),
+        };
+      });
+    },
+    [],
+  );
 
   const setGroupLayout = useCallback(
     (groupId: string, patch: Partial<GroupLayout>) => {

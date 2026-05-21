@@ -361,6 +361,25 @@ body.resizing-sidebar * {
 .term-group.dragging {
   opacity: 0.5;
 }
+.term-group.drop-into {
+  background: color-mix(in oklch, var(--group-accent) 18%, transparent);
+  outline: 2px dashed var(--group-accent);
+  outline-offset: -2px;
+}
+.term-group.nested {
+  margin-right: 0;
+  margin-left: 0;
+  position: relative;
+}
+.term-group.nested > .term-group-body {
+  position: relative;
+}
+.term-group .term-tab {
+  padding-left: calc(22px + var(--group-depth, 0) * 12px);
+}
+.term-group .term-tab::before {
+  left: calc(12px + var(--group-depth, 0) * 12px);
+}
 .term-group-h {
   cursor: pointer;
 }

@@ -29,6 +29,8 @@ function makeGroup(overrides: Partial<Group> = {}): Group {
     name: "group one",
     collapsed: false,
     accent: "orange",
+    kind: "local",
+    parentId: null,
     ...overrides,
   };
 }
@@ -385,7 +387,7 @@ describe("Sidebar - drag and drop", () => {
       '[data-group-id="g3"] .term-group-h',
     ) as HTMLElement;
     const target = container.querySelector(
-      '[data-group-id="g1"]',
+      '[data-group-id="g1"] .term-group-h',
     ) as HTMLElement;
     const dt = makeDataTransfer();
 
@@ -411,7 +413,7 @@ describe("Sidebar - drag and drop", () => {
     fireEvent(target, overEvt);
     fireEvent.drop(target, { dataTransfer: dt });
 
-    expect(handlers.onReorderGroup).toHaveBeenCalledWith("g3", "g1");
+    expect(handlers.onReorderGroup).toHaveBeenCalledWith("g3", "g1", null);
   });
 
   it("17c. drag a group over lower half of the last group moves it to the end", () => {
@@ -425,7 +427,7 @@ describe("Sidebar - drag and drop", () => {
       '[data-group-id="g1"] .term-group-h',
     ) as HTMLElement;
     const target = container.querySelector(
-      '[data-group-id="g3"]',
+      '[data-group-id="g3"] .term-group-h',
     ) as HTMLElement;
     const dt = makeDataTransfer();
 
@@ -451,7 +453,7 @@ describe("Sidebar - drag and drop", () => {
     fireEvent(target, overEvt);
     fireEvent.drop(target, { dataTransfer: dt });
 
-    expect(handlers.onReorderGroup).toHaveBeenCalledWith("g1", null);
+    expect(handlers.onReorderGroup).toHaveBeenCalledWith("g1", null, null);
   });
 });
 

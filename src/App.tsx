@@ -18,7 +18,7 @@ import { agentTabDisplay } from "./lib/agentLabel";
 import { GridResizers } from "./components/GridResizers";
 import { ContextMenu, type MenuItem } from "./components/ContextMenu";
 import { ConfirmDialog } from "./components/ConfirmDialog";
-import { useWorkspace } from "./hooks/useWorkspace";
+import { useWorkspace, collectDescendantGroupIds } from "./hooks/useWorkspace";
 import { ColorPicker } from "./components/ColorPicker";
 import { useSystemInfo } from "./hooks/useSystemInfo";
 import { useMaximized } from "./hooks/useMaximized";
@@ -712,12 +712,22 @@ function AppInner({
   const voiceRef = useRef(voice);
   voiceRef.current = voice;
 
-  const gridTabsRaw = useMemo(
+  const gridGroupSet = useMemo(
     () =>
       gridGroupId
-        ? ws.tabs.filter((t) => t.groupId === gridGroupId)
+        ? collectDescendantGroupIds(ws.groups, gridGroupId)
+        : null,
+    [ws.groups, gridGroupId],
+  );
+
+  const gridTabsRaw = useMemo(
+    () =>
+      gridGroupSet
+        ? ws.tabs.filter(
+            (t) => t.groupId != null && gridGroupSet.has(t.groupId),
+          )
         : [],
-    [ws.tabs, gridGroupId],
+    [ws.tabs, gridGroupSet],
   );
 
   const gridSlotOrder = gridGroupId
@@ -1080,14 +1090,43 @@ function AppInner({
         ),
       },
       { label: "", onSelect: () => {}, separator: true },
-      {
-        label: "delete group",
-        onSelect: () => ws.deleteGroup(id),
-        danger: true,
-      },
+      ...buildDeleteGroupMenuItems(id),
     ];
     setCtx({ x, y, items });
   };
+
+  function buildDeleteGroupMenuItems(id: string): MenuItem[] {
+    const hasChildren = ws.groups.some((g) => g.parentId === id);
+    if (!hasChildren) {
+      return [
+        {
+          label: "delete group",
+          onSelect: () => ws.deleteGroup(id, "reparent"),
+          danger: true,
+        },
+      ];
+    }
+    return [
+      {
+        label: "delete group (move children up)",
+        onSelect: () => ws.deleteGroup(id, "reparent"),
+        danger: true,
+      },
+      {
+        label: "delete group recursively (incl. tabs)",
+        onSelect: () => {
+          if (
+            window.confirm(
+              "Delete this group and ALL nested subgroups + their tabs?",
+            )
+          ) {
+            ws.deleteGroup(id, "recursive");
+          }
+        },
+        danger: true,
+      },
+    ];
+  }
 
   const labelLower = (activeTab?.label ?? "shell").toLowerCase();
   const titleSize = `${ws.tabs.length} tab${ws.tabs.length === 1 ? "" : "s"}`;
@@ -1126,7 +1165,9 @@ function AppInner({
             const activeGroup =
               active && active.kind === "local" ? active.groupId : null;
             const target = g === undefined ? activeGroup : g;
-            if (target !== gridGroupId) setGridGroupId(null);
+            const inGridScope =
+              target != null && gridGroupSet?.has(target) === true;
+            if (!inGridScope && target !== gridGroupId) setGridGroupId(null);
             const profileId = settings.defaultShellProfileId ?? null;
             ws.addTab(g, profileId ? { profileId } : undefined);
           }}
@@ -1137,7 +1178,10 @@ function AppInner({
               {
                 label: "default shell",
                 onSelect: () => {
-                  if (groupId !== gridGroupId) setGridGroupId(null);
+                  const inGridScope =
+                    groupId != null && gridGroupSet?.has(groupId) === true;
+                  if (!inGridScope && groupId !== gridGroupId)
+                    setGridGroupId(null);
                   ws.addTab(groupId ?? undefined);
                 },
               },
@@ -1147,7 +1191,10 @@ function AppInner({
                   settings.defaultShellProfileId === p.id ? " (default)" : ""
                 }`,
                 onSelect: () => {
-                  if (groupId !== gridGroupId) setGridGroupId(null);
+                  const inGridScope =
+                    groupId != null && gridGroupSet?.has(groupId) === true;
+                  if (!inGridScope && groupId !== gridGroupId)
+                    setGridGroupId(null);
                   ws.addTab(groupId ?? undefined, { profileId: p.id });
                 },
               })),
@@ -1219,13 +1266,16 @@ function AppInner({
               />
             )}
             {ws.tabs.map((t) => {
-              const isGridContext =
-                gridGroupId !== null && t.groupId === gridGroupId;
+              const inGridScope =
+                gridGroupSet != null &&
+                t.groupId != null &&
+                gridGroupSet.has(t.groupId);
+              const isGridContext = gridGroupId !== null && inGridScope;
               const isSolo = soloTabId === t.id;
               const showToolbar =
                 isGridContext && (gridDims !== null || isSolo);
               const slotIndex =
-                gridDims && t.groupId === gridGroupId
+                gridDims && inGridScope
                   ? gridTabs.findIndex((x) => x.id === t.id)
                   : -1;
               const isDropTarget = isGridContext && dropTargetTabId === t.id;
