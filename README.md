@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.svg" alt="mTerminal — multi-tab terminal emulator" width="100%">
+</p>
+
 <h1>
 <p align="center">
   <img src="build/icon.svg" alt="mTerminal" width="128">
