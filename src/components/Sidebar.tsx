@@ -12,6 +12,7 @@ import type { AgentStatus } from "../hooks/useAgentStatus";
 import { agentTabDisplay } from "../lib/agentLabel";
 import { InlineEdit } from "./InlineEdit";
 import { PluginPanelSlot } from "../extensions/components/PluginPanelSlot";
+import { ExtensionIcon } from "../extensions/components/ExtensionIcon";
 import {
   getWorkspaceSectionRegistry,
   type WorkspaceSectionEntry,
@@ -669,7 +670,7 @@ export function Sidebar(props: Props) {
                 aria-label="open file browser in group"
                 onClick={() => onAddFileBrowser(g.id)}
               >
-                ⌸
+                <ExtensionIcon extId="file-browser" size={13} />
               </button>
             )}
           </div>
