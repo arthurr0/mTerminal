@@ -250,14 +250,15 @@ a,
   overflow: hidden;
 }
 .term-side-sidebar-bottom {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: var(--mt-side-foot-h, 0px);
+  position: relative;
+  flex: 0 0 auto;
   z-index: 10;
   max-height: calc(100% - var(--mt-side-foot-h, 0px));
   background: var(--bg-side, var(--bg, transparent));
   pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 .term-side-sidebar-bottom:empty {
   display: none;
@@ -334,6 +335,64 @@ body.resizing-sidebar * {
   justify-content: space-between;
   gap: 8px;
 }
+.term-side-section-row .section-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  background: transparent;
+  border: 0;
+  color: var(--fg-dim);
+  cursor: pointer;
+  border-radius: 3px;
+  padding: 0;
+  margin-right: 2px;
+  flex: 0 0 auto;
+  transition: transform 120ms ease, color 120ms ease, background 120ms ease;
+}
+.term-side-section-row .section-chevron:hover {
+  color: var(--fg);
+  background: var(--bg-hover);
+}
+.term-side-section-row .section-chevron.collapsed {
+  transform: rotate(-90deg);
+}
+.term-side-section-row > span:not(.section-chevron) {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* When the section is collapsed we keep its flex slot intact so that the
+ * other sidebar regions (workspace.bottom panel, settings foot, etc.) do
+ * not jump up. Only the tabs/groups area inside is hidden, and the
+ * workspace.bottom slot floats to the bottom of the slot. */
+.term-side-scroll-collapsed {
+  overflow: hidden !important;
+}
+.term-side-scroll-collapsed .term-side-pane-top {
+  display: none !important;
+}
+.term-side-scroll-collapsed .term-side-pane-resize {
+  display: none !important;
+}
+.term-side-scroll-collapsed .term-side-pane-bottom {
+  flex: 1 1 auto !important;
+  min-height: 0 !important;
+  height: auto !important;
+  margin-top: 0 !important;
+}
+/* When the embedded panel inside pane-bottom signals it is collapsed,
+ * the bottom slot should hug its content (~40px) instead of stretching to
+ * fill the freed local-workspace space — keeps it flush with sidebar.bottom. */
+.term-side-scroll-collapsed .term-side-pane-bottom.rs-host-collapsed,
+.term-side-pane-bottom.rs-host-collapsed {
+  flex: 0 0 auto !important;
+  height: auto !important;
+  margin-top: auto !important;
+}
 
 .term-side-scroll {
   flex: 1;
@@ -377,7 +436,7 @@ body.resizing-sidebar * {
 .term-side-scroll-split .term-side-pane-top::-webkit-scrollbar-thumb:hover { background: var(--n-300); }
 .term-side-scroll-split .term-side-pane-bottom {
   flex: 0 0 auto;
-  min-height: 0;
+  min-height: 60px;
   display: flex;
   flex-direction: column;
   position: relative;

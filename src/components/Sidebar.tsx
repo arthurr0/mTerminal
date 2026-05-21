@@ -45,6 +45,64 @@ function useHasWorkspaceBottomPanel(): boolean {
 
 const TOP_HEIGHT_KEY = "mt:sidebar:workspaceTopHeight";
 const PANE_MIN = 60;
+const SECTION_COLLAPSED_PREFIX = "mt:sidebar:section-collapsed:";
+
+function readSectionCollapsed(key: string): boolean {
+  if (typeof localStorage === "undefined") return false;
+  return localStorage.getItem(SECTION_COLLAPSED_PREFIX + key) === "1";
+}
+
+function writeSectionCollapsed(key: string, value: boolean): void {
+  if (typeof localStorage === "undefined") return;
+  if (value) localStorage.setItem(SECTION_COLLAPSED_PREFIX + key, "1");
+  else localStorage.removeItem(SECTION_COLLAPSED_PREFIX + key);
+}
+
+function useSectionCollapsed(
+  key: string,
+): [boolean, (next: boolean) => void] {
+  const [value, setValue] = useState<boolean>(() => readSectionCollapsed(key));
+  const set = (next: boolean): void => {
+    setValue(next);
+    writeSectionCollapsed(key, next);
+  };
+  return [value, set];
+}
+
+function SectionChevron({
+  collapsed,
+  onToggle,
+  label,
+}: {
+  collapsed: boolean;
+  onToggle: () => void;
+  label: string;
+}): React.JSX.Element {
+  return (
+    <button
+      type="button"
+      className={`chevron section-chevron ${collapsed ? "collapsed" : ""}`}
+      aria-label={collapsed ? `expand ${label}` : `collapse ${label}`}
+      aria-expanded={!collapsed}
+      title={collapsed ? "expand" : "collapse"}
+      onClick={(e) => {
+        e.stopPropagation();
+        onToggle();
+      }}
+    >
+      <svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true">
+        <path
+          d="M2.5 3.5 L5 6 L7.5 3.5"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      </svg>
+    </button>
+  );
+}
 
 function readTopHeight(): number | null {
   if (typeof localStorage === "undefined") return null;
@@ -82,7 +140,7 @@ function WorkspaceBottomSlot(): React.JSX.Element | null {
       pane.style.height = "";
     } else {
       if (top) {
-        top.style.flex = `0 0 ${topHeight}px`;
+        top.style.flex = `0 1 ${topHeight}px`;
         top.style.height = `${topHeight}px`;
       }
       pane.style.flex = "1 1 0";
@@ -140,7 +198,7 @@ function WorkspaceBottomSlot(): React.JSX.Element | null {
         Math.min(maxTop, startTop + (ev.clientY - startY)),
       );
       lastTop = next;
-      top.style.flex = `0 0 ${next}px`;
+      top.style.flex = `0 1 ${next}px`;
       top.style.height = `${next}px`;
       pane.style.flex = "1 1 0";
       pane.style.height = "";
@@ -895,13 +953,29 @@ export function Sidebar(props: Props) {
     sectionGroups: Group[];
     showAddTab: boolean;
     showAddGroup: boolean;
+    collapsed: boolean;
+    onToggleCollapsed: () => void;
   }) => {
-    const { kind, label, sectionTabs, sectionGroups, showAddTab, showAddGroup } = opts;
+    const {
+      kind,
+      label,
+      sectionTabs,
+      sectionGroups,
+      showAddTab,
+      showAddGroup,
+      collapsed,
+      onToggleCollapsed,
+    } = opts;
     const sectionUngrouped = sectionTabs.filter((t) => t.groupId === null);
     const sectionKey = `term-side-section-${kind}`;
     return (
       <Fragment key={sectionKey}>
         <div className="term-side-section term-side-section-row">
+          <SectionChevron
+            collapsed={collapsed}
+            onToggle={onToggleCollapsed}
+            label={label}
+          />
           <span>{label}</span>
           <div className="term-side-actions">
             {showAddTab && (
@@ -933,7 +1007,7 @@ export function Sidebar(props: Props) {
         <div
           className={`term-side-scroll term-side-scroll-${kind}${
             kind === "local" ? " term-side-scroll-split" : ""
-          }`}
+          }${collapsed ? " term-side-scroll-collapsed" : ""}`}
           role="tablist"
           aria-orientation="vertical"
           onDragOver={(e) => {
@@ -954,6 +1028,7 @@ export function Sidebar(props: Props) {
           }}
           onDrop={commitDrop}
         >
+          {!collapsed && (
           <div className={kind === "local" ? "term-side-pane-top" : undefined}>
             <div
               className={`term-ungrouped ${
@@ -999,6 +1074,7 @@ export function Sidebar(props: Props) {
               </div>
             )}
           </div>
+          )}
 
           {kind === "local" && <WorkspaceBottomSlot />}
 
@@ -1006,6 +1082,8 @@ export function Sidebar(props: Props) {
       </Fragment>
     );
   };
+
+  const [localCollapsed, setLocalCollapsed] = useSectionCollapsed("local");
 
   return (
     <aside className="term-side" aria-label="Workspace">
@@ -1021,6 +1099,8 @@ export function Sidebar(props: Props) {
         sectionGroups: localGroups,
         showAddTab: true,
         showAddGroup: true,
+        collapsed: localCollapsed,
+        onToggleCollapsed: () => setLocalCollapsed(!localCollapsed),
       })}
 
       {workspaceSections.map((section) => (
