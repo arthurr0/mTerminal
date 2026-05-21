@@ -2,7 +2,6 @@ import {
   app,
   BrowserWindow,
   ipcMain,
-  clipboard,
   dialog,
   nativeImage,
   Notification,
@@ -43,6 +42,7 @@ import { registerMarketplaceHandlers } from './marketplace'
 import { registerUpdaterHandlers, runStartupCheck } from './updater'
 import { runOneShotMarketplaceMigrations } from './extensions/migrations-marketplace'
 import { attachExternalLinkHandlers, isExternalUrl } from './external-links'
+import { registerClipboardHandlers, cleanupOldClipboardImages } from './clipboard'
 
 if (process.platform === 'linux') {
   app.commandLine.appendSwitch('disable-features', 'WaylandWpColorManagerV1')
@@ -113,7 +113,8 @@ app
   .then(async () => {
     setupAppMenu()
     registerWindowIpc()
-    registerClipboardIpc()
+    registerClipboardHandlers()
+    cleanupOldClipboardImages()
     registerDialogIpc()
     registerNotificationIpc()
     registerShellIpc()
@@ -223,13 +224,6 @@ function registerWindowIpc(): void {
   })
 
   ipcMain.handle('window:is-maximized', () => focused()?.isMaximized() ?? false)
-}
-
-function registerClipboardIpc(): void {
-  ipcMain.handle('clipboard:read', () => clipboard.readText())
-  ipcMain.handle('clipboard:write', (_e, text: string) => {
-    clipboard.writeText(typeof text === 'string' ? text : String(text ?? ''))
-  })
 }
 
 function registerDialogIpc(): void {

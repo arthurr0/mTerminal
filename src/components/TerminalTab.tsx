@@ -44,6 +44,7 @@ interface Props {
   shellArgs: string[];
   showGreeting: boolean;
   copyOnSelect: boolean;
+  claudeActive?: boolean;
   initialCwd?: string;
   toolbar?: ReactNode;
 }
@@ -79,6 +80,7 @@ export function TerminalTab({
   shellArgs,
   showGreeting,
   copyOnSelect,
+  claudeActive,
   initialCwd,
   toolbar,
 }: Props) {
@@ -110,6 +112,8 @@ export function TerminalTab({
   const adapterDisposeRef = useRef<(() => void) | null>(null);
   const activeRef = useRef(active);
   activeRef.current = active;
+  const claudeActiveRef = useRef(claudeActive);
+  claudeActiveRef.current = claudeActive;
 
   useEffect(() => {
     const host = hostRef.current;
@@ -149,6 +153,28 @@ export function TerminalTab({
 
     term.attachCustomKeyEventHandler((e) => {
       if (e.type !== "keydown") return true;
+
+      if (
+        claudeActiveRef.current &&
+        e.key.toLowerCase() === "v" &&
+        e.ctrlKey &&
+        !e.shiftKey &&
+        !e.altKey &&
+        !e.metaKey
+      ) {
+        e.preventDefault();
+        void (async () => {
+          const id = ptyIdRef.current;
+          if (id == null) return;
+          let saved: string | null = null;
+          try {
+            saved = await window.mt.clipboard.readImage();
+          } catch {}
+          const data = saved ? saved + " " : "\x16";
+          invoke("pty_write", { id, data }).catch(() => {});
+        })();
+        return false;
+      }
 
       if (
         e.key === "Enter" &&

@@ -193,6 +193,10 @@ const api = {
     readText: (): Promise<string> => ipcRenderer.invoke('clipboard:read'),
     writeText: (text: string): Promise<void> =>
       ipcRenderer.invoke('clipboard:write', text),
+    saveImage: (bytes: Uint8Array, mime: string): Promise<string> =>
+      ipcRenderer.invoke('clipboard:save-image', bytes, mime),
+    readImage: (): Promise<string | null> =>
+      ipcRenderer.invoke('clipboard:read-image'),
   },
   dialog: {
     open: (opts?: unknown): Promise<string[] | null> =>

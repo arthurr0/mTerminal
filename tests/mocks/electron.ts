@@ -32,4 +32,20 @@ export const app = {
   on: () => {},
 }
 
-export default { ipcMain, app, BrowserWindow }
+let clipboardText = ''
+let clipboardImagePng: Buffer | null = null
+export const clipboard = {
+  readText: () => clipboardText,
+  writeText: (text: string) => {
+    clipboardText = text
+  },
+  readImage: () => ({
+    isEmpty: () => clipboardImagePng == null,
+    toPNG: () => clipboardImagePng ?? Buffer.alloc(0),
+  }),
+  __setImage: (png: Buffer | null) => {
+    clipboardImagePng = png
+  },
+}
+
+export default { ipcMain, app, BrowserWindow, clipboard }
