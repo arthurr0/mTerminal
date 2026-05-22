@@ -43,8 +43,6 @@ function useHasWorkspaceBottomPanel(): boolean {
   return has;
 }
 
-const TOP_HEIGHT_KEY = "mt:sidebar:workspaceTopHeight";
-const PANE_MIN = 60;
 const SECTION_COLLAPSED_PREFIX = "mt:sidebar:section-collapsed:";
 
 function readSectionCollapsed(key: string): boolean {
@@ -104,49 +102,9 @@ function SectionChevron({
   );
 }
 
-function readTopHeight(): number | null {
-  if (typeof localStorage === "undefined") return null;
-  const raw = localStorage.getItem(TOP_HEIGHT_KEY);
-  if (raw == null) return null;
-  const n = Number(raw);
-  return Number.isFinite(n) && n > 0 ? n : null;
-}
-
-function writeTopHeight(value: number | null): void {
-  if (typeof localStorage === "undefined") return;
-  if (value == null) localStorage.removeItem(TOP_HEIGHT_KEY);
-  else localStorage.setItem(TOP_HEIGHT_KEY, String(value));
-}
-
 function WorkspaceBottomSlot(): React.JSX.Element | null {
   const hasPanel = useHasWorkspaceBottomPanel();
   const paneRef = useRef<HTMLDivElement | null>(null);
-  const [topHeight, setTopHeight] = useState<number | null>(() =>
-    readTopHeight(),
-  );
-
-  useEffect(() => {
-    const pane = paneRef.current;
-    if (!pane) return;
-    const top = pane.parentElement?.querySelector(
-      ".term-side-pane-top",
-    ) as HTMLElement | null;
-    if (topHeight == null) {
-      if (top) {
-        top.style.flex = "";
-        top.style.height = "";
-      }
-      pane.style.flex = "";
-      pane.style.height = "";
-    } else {
-      if (top) {
-        top.style.flex = `0 1 ${topHeight}px`;
-        top.style.height = `${topHeight}px`;
-      }
-      pane.style.flex = "1 1 0";
-      pane.style.height = "";
-    }
-  }, [topHeight, hasPanel]);
 
   useEffect(() => {
     const pane = paneRef.current;
@@ -168,79 +126,13 @@ function WorkspaceBottomSlot(): React.JSX.Element | null {
       ro.disconnect();
       document.documentElement.style.removeProperty("--mt-workspace-bottom-h");
     };
-  }, [hasPanel, topHeight]);
-
-  const onPointerDown = (e: RPointerEvent<HTMLDivElement>): void => {
-    const pane = paneRef.current;
-    if (!pane) return;
-    const top = pane.parentElement?.querySelector(
-      ".term-side-pane-top",
-    ) as HTMLElement | null;
-    if (!top) return;
-    e.preventDefault();
-    const startY = e.clientY;
-    const startTop = top.getBoundingClientRect().height;
-    const parent = pane.parentElement;
-    const parentH = parent
-      ? parent.getBoundingClientRect().height
-      : window.innerHeight;
-    const target = e.currentTarget;
-    try {
-      target.setPointerCapture(e.pointerId);
-    } catch {
-      /* ignore */
-    }
-    let lastTop = startTop;
-    const move = (ev: PointerEvent): void => {
-      const maxTop = Math.max(0, parentH - PANE_MIN);
-      const next = Math.max(
-        0,
-        Math.min(maxTop, startTop + (ev.clientY - startY)),
-      );
-      lastTop = next;
-      top.style.flex = `0 1 ${next}px`;
-      top.style.height = `${next}px`;
-      pane.style.flex = "1 1 0";
-      pane.style.height = "";
-    };
-    const up = (ev: PointerEvent): void => {
-      try {
-        target.releasePointerCapture(ev.pointerId);
-      } catch {
-        /* ignore */
-      }
-      document.removeEventListener("pointermove", move);
-      document.removeEventListener("pointerup", up);
-      document.body.classList.remove("resizing-workspace-bottom");
-      setTopHeight(lastTop);
-      writeTopHeight(lastTop);
-    };
-    document.body.classList.add("resizing-workspace-bottom");
-    document.addEventListener("pointermove", move);
-    document.addEventListener("pointerup", up);
-  };
-
-  const onDoubleClick = (): void => {
-    setTopHeight(null);
-    writeTopHeight(null);
-  };
+  }, [hasPanel]);
 
   if (!hasPanel) return null;
   return (
-    <>
-      <div
-        className="term-side-pane-resize"
-        role="separator"
-        aria-label="resize workspace split"
-        aria-orientation="horizontal"
-        onPointerDown={onPointerDown}
-        onDoubleClick={onDoubleClick}
-        title="drag to resize · double-click to reset"
-      />
-      <div className="term-side-pane-bottom" ref={paneRef}>
-        <PluginPanelSlot location="workspace.bottom" />
-      </div>
-    </>
+    <div className="term-side-pane-bottom" ref={paneRef}>
+      <PluginPanelSlot location="workspace.bottom" />
+    </div>
   );
 }
 
