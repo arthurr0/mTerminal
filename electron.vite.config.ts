@@ -76,6 +76,19 @@ export default defineConfig({
       sourcemap: false,
       rollupOptions: {
         input: resolve(__dirname, 'index.html'),
+        output: {
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return
+            if (id.includes('@xterm')) return 'xterm'
+            if (
+              id.includes('/react-dom/') ||
+              id.includes('/react/') ||
+              id.includes('/scheduler/')
+            ) {
+              return 'react'
+            }
+          },
+        },
       },
     },
   },

@@ -20,6 +20,11 @@ import {
   readWslProcInfo,
   newestWslChildPid,
 } from './wsl'
+import {
+  getWinProcSnapshot,
+  descendantNodes,
+  type WinProcMap,
+} from './win-proc-snapshot'
 
 export { setMainWindow } from './sessions'
 
@@ -407,9 +412,39 @@ export async function readProcInfo(pid: number): Promise<ProcInfo> {
   return { cwd: null, cmd: null }
 }
 
-async function ptyInfo(
-  rootPid: number
-): Promise<{ cwd: string | null; cmd: string | null; pid: number }> {
+type PtyInfoResult = { cwd: string | null; cmd: string | null; pid: number }
+
+function winProcDisplay(
+  map: WinProcMap,
+  pid: number
+): { cwd: string | null; cmd: string | null } {
+  const e = map.get(pid)
+  if (!e) return { cwd: null, cmd: null }
+  let cmd: string | null = e.name || null
+  if (cmd && cmd.toLowerCase().endsWith('.exe')) cmd = cmd.slice(0, -4)
+  const cwd = e.exePath ? path.dirname(e.exePath) : null
+  return { cwd, cmd }
+}
+
+async function ptyInfoWin32(rootPid: number): Promise<PtyInfoResult> {
+  let map: WinProcMap
+  try {
+    map = await getWinProcSnapshot()
+  } catch {
+    return { cwd: null, cmd: null, pid: rootPid }
+  }
+  const nodes = descendantNodes(map, rootPid)
+  const leaf = pickNewestLeaf(rootPid, nodes, new Map<number, number>())
+  const info = winProcDisplay(map, leaf)
+  if (info.cwd === null && info.cmd === null && leaf !== rootPid) {
+    const fallback = winProcDisplay(map, rootPid)
+    return { cwd: fallback.cwd, cmd: fallback.cmd, pid: leaf }
+  }
+  return { cwd: info.cwd, cmd: info.cmd, pid: leaf }
+}
+
+async function ptyInfo(rootPid: number): Promise<PtyInfoResult> {
+  if (process.platform === 'win32') return ptyInfoWin32(rootPid)
   let leaf = rootPid
   try {
     const advanced = (await pidtree(rootPid, {
@@ -432,31 +467,42 @@ async function ptyInfo(
   return { cwd: info.cwd, cmd: info.cmd, pid: leaf }
 }
 
-interface WslInfoCacheEntry {
+export interface InfoCacheEntry {
   expiresAt: number
-  promise: Promise<{ cwd: string | null; cmd: string | null; pid: number }>
+  promise: Promise<PtyInfoResult>
 }
-const WSL_INFO_CACHE = new Map<number, WslInfoCacheEntry>()
-const WSL_INFO_TTL_MS = 1500
+const INFO_TTL_MS = 1500
 
-async function wslPtyInfo(
-  sessionId: number,
-  distro: string
-): Promise<{ cwd: string | null; cmd: string | null; pid: number }> {
+export function cachedInfo(
+  cache: Map<number, InfoCacheEntry>,
+  key: number,
+  load: () => Promise<PtyInfoResult>
+): Promise<PtyInfoResult> {
   const now = Date.now()
-  const cached = WSL_INFO_CACHE.get(sessionId)
+  const cached = cache.get(key)
   if (cached && cached.expiresAt > now) return cached.promise
-  const promise = (async () => {
+  const promise = load()
+  cache.set(key, { expiresAt: now + INFO_TTL_MS, promise })
+  promise.catch(() => {
+    cache.delete(key)
+  })
+  return promise
+}
+
+const WSL_INFO_CACHE = new Map<number, InfoCacheEntry>()
+const NATIVE_INFO_CACHE = new Map<number, InfoCacheEntry>()
+
+function wslPtyInfo(sessionId: number, distro: string): Promise<PtyInfoResult> {
+  return cachedInfo(WSL_INFO_CACHE, sessionId, async () => {
     const pid = await newestWslChildPid(distro)
     if (pid === null) return { cwd: null, cmd: null, pid: 0 }
     const info = await readWslProcInfo(distro, pid)
     return { cwd: info.cwd, cmd: info.cmd, pid }
-  })()
-  WSL_INFO_CACHE.set(sessionId, { expiresAt: now + WSL_INFO_TTL_MS, promise })
-  promise.catch(() => {
-    WSL_INFO_CACHE.delete(sessionId)
   })
-  return promise
+}
+
+function nativePtyInfo(sessionId: number, rootPid: number): Promise<PtyInfoResult> {
+  return cachedInfo(NATIVE_INFO_CACHE, sessionId, () => ptyInfo(rootPid))
 }
 
 export function resolveWslSentinel(
@@ -524,7 +570,7 @@ export function registerPtyHandlers(): void {
     if (s.wslDistro !== undefined) {
       return wslPtyInfo(s.id, s.wslDistro)
     }
-    return ptyInfo(s.pid)
+    return nativePtyInfo(s.id, s.pid)
   })
 
   ipcMain.handle(

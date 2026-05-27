@@ -9,6 +9,7 @@ import {
   readProcInfo,
   resolveSpawnCwd,
   resolveWslSentinel,
+  cachedInfo,
   type NodeInfo,
 } from '../../electron/main/pty'
 
@@ -271,4 +272,42 @@ describe('resolveWslSentinel', () => {
       expect(resolveWslSentinel('wsl://Ubuntu')).toBeNull()
     },
   )
+})
+
+describe('cachedInfo', () => {
+  it('dedupes concurrent calls within the TTL', async () => {
+    const cache = new Map()
+    let calls = 0
+    const load = () => {
+      calls++
+      return Promise.resolve({ cwd: '/x', cmd: 'sh', pid: 1 })
+    }
+    const a = cachedInfo(cache, 1, load)
+    const b = cachedInfo(cache, 1, load)
+    expect(a).toBe(b)
+    await a
+    expect(calls).toBe(1)
+  })
+
+  it('reloads after the entry expires', async () => {
+    const cache = new Map()
+    let calls = 0
+    const load = () => {
+      calls++
+      return Promise.resolve({ cwd: null, cmd: null, pid: 2 })
+    }
+    await cachedInfo(cache, 2, load)
+    const entry = cache.get(2)!
+    entry.expiresAt = Date.now() - 1
+    await cachedInfo(cache, 2, load)
+    expect(calls).toBe(2)
+  })
+
+  it('evicts the entry when the loader rejects', async () => {
+    const cache = new Map()
+    const load = () => Promise.reject(new Error('boom'))
+    await expect(cachedInfo(cache, 3, load)).rejects.toThrow('boom')
+    await new Promise((r) => setTimeout(r, 0))
+    expect(cache.has(3)).toBe(false)
+  })
 })

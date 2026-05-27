@@ -28,6 +28,7 @@ import pidtree from 'pidtree'
 import { agentBridge, type AgentEvent } from './bridge-server'
 import { listSessionIds, sessionPid } from '../sessions'
 import { isLive } from './status-tracker'
+import { getWinProcSnapshot, descendantNodes } from '../win-proc-snapshot'
 
 const execFileP = promisify(execFile)
 
@@ -43,38 +44,73 @@ function classify(name: string): Agent | null {
   return null
 }
 
-async function readCommandName(pid: number): Promise<string | null> {
-  try {
-    if (process.platform === 'linux') {
-      const txt = await fs.readFile(`/proc/${pid}/comm`, 'utf8')
-      return txt.replace(/\n+$/, '').trim() || null
-    }
-    if (process.platform === 'darwin') {
-      const { stdout } = await execFileP('ps', ['-o', 'comm=', '-p', String(pid)])
-      const line = stdout.trim().split('\n').pop() ?? ''
-      return (line.split('/').pop() || line) || null
-    }
-    if (process.platform === 'win32') {
-      const { stdout } = await execFileP('tasklist', [
-        '/FI',
-        `PID eq ${pid}`,
-        '/FO',
-        'CSV',
-        '/NH',
-      ])
-      const m = stdout.trim().split('\n')[0]?.match(/^"([^"]+)"/)
-      if (!m) return null
-      let name = m[1]!
-      if (name.toLowerCase().endsWith('.exe')) name = name.slice(0, -4)
-      return name
-    }
-  } catch {
-    /* fall through */
+export function parseDarwinPsComm(stdout: string): Map<number, string> {
+  const map = new Map<number, string>()
+  for (const raw of stdout.split('\n')) {
+    const line = raw.trim()
+    if (!line) continue
+    const sp = line.indexOf(' ')
+    if (sp < 0) continue
+    const pid = Number(line.slice(0, sp))
+    if (!Number.isFinite(pid)) continue
+    const comm = line.slice(sp + 1).trim()
+    const name = comm.split('/').pop() || comm
+    if (name) map.set(pid, name)
   }
-  return null
+  return map
+}
+
+async function readCommandNames(pids: number[]): Promise<Map<number, string>> {
+  const map = new Map<number, string>()
+  if (pids.length === 0) return map
+  if (process.platform === 'linux') {
+    await Promise.all(
+      pids.map(async (pid) => {
+        try {
+          const txt = await fs.readFile(`/proc/${pid}/comm`, 'utf8')
+          const name = txt.replace(/\n+$/, '').trim()
+          if (name) map.set(pid, name)
+        } catch {
+          /* gone */
+        }
+      })
+    )
+    return map
+  }
+  if (process.platform === 'darwin') {
+    try {
+      const { stdout } = await execFileP('ps', [
+        '-o',
+        'pid=,comm=',
+        '-p',
+        pids.join(','),
+      ])
+      return parseDarwinPsComm(stdout)
+    } catch {
+      return map
+    }
+  }
+  return map
 }
 
 async function detectAgent(rootPid: number): Promise<Agent | null> {
+  if (process.platform === 'win32') {
+    let descendants: Array<{ pid: number }>
+    try {
+      const snapshot = await getWinProcSnapshot()
+      descendants = descendantNodes(snapshot, rootPid)
+      for (const node of descendants) {
+        const name = snapshot.get(node.pid)?.name
+        if (!name) continue
+        const a = classify(name)
+        if (a) return a
+      }
+    } catch {
+      return null
+    }
+    return null
+  }
+
   let descendants: number[] = []
   try {
     descendants = await pidtree(rootPid, { root: false })
@@ -82,10 +118,9 @@ async function detectAgent(rootPid: number): Promise<Agent | null> {
     return null
   }
   if (descendants.length === 0) return null
-  const names = await Promise.all(descendants.map(readCommandName))
-  for (const n of names) {
-    if (!n) continue
-    const a = classify(n)
+  const names = await readCommandNames(descendants)
+  for (const name of names.values()) {
+    const a = classify(name)
     if (a) return a
   }
   return null
@@ -111,6 +146,7 @@ async function tick(): Promise<void> {
       lastSeen.delete(tabId)
       continue
     }
+    if (isLive(tabId)) continue
     const agent = await detectAgent(pid)
     const prev = lastSeen.get(tabId) ?? null
 

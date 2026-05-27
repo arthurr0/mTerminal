@@ -16,7 +16,8 @@ import { ipcMain, type BrowserWindow } from 'electron'
 import { isUnlocked } from '../vault'
 import { getProvider, listProviders } from './registry'
 import { clearAiKey, getAiKey, setAiKey } from './vault-keys'
-import type { AiEvent, CompleteReq, ListModelsReq, ResolveOptions } from './types'
+import type { CompleteReq, ListModelsReq, ResolveOptions } from './types'
+import { createDeltaBatcher } from './delta-batcher'
 
 const VAULT_LOCKED_ERROR = 'vault locked'
 
@@ -58,9 +59,10 @@ export function registerAiHandlers(getWin: () => BrowserWindow | null): void {
     }
     const ctrl = new AbortController()
     tasks.set(req.id, ctrl)
-    const emit = (e: AiEvent): void => {
+    const batcher = createDeltaBatcher((e) => {
       getWin()?.webContents.send('ai:event', e)
-    }
+    })
+    const emit = batcher.emit
     try {
       const usage = await provider.stream(
         {
@@ -84,6 +86,7 @@ export function registerAiHandlers(getWin: () => BrowserWindow | null): void {
         emit({ id: req.id, kind: 'error', value: msg })
       }
     } finally {
+      batcher.flush()
       tasks.delete(req.id)
     }
   })

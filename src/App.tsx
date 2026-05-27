@@ -1,4 +1,6 @@
 import {
+  lazy,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -32,9 +34,19 @@ import {
 import { VaultModalHost } from "./vault/VaultModalHost";
 import { useAgentStatus } from "./hooks/useAgentStatus";
 import { useMcpServer } from "./hooks/useMcpServer";
-import { AICommandPalette } from "./components/AICommandPalette";
-import { ExplainPopover } from "./components/ExplainPopover";
-import { AIPanel } from "./components/AIPanel";
+const AICommandPalette = lazy(() =>
+  import("./components/AICommandPalette").then((m) => ({
+    default: m.AICommandPalette,
+  })),
+);
+const ExplainPopover = lazy(() =>
+  import("./components/ExplainPopover").then((m) => ({
+    default: m.ExplainPopover,
+  })),
+);
+const AIPanel = lazy(() =>
+  import("./components/AIPanel").then((m) => ({ default: m.AIPanel })),
+);
 // Git Panel is now provided by the git-panel extension under
 // extensions/git-panel/. Sidebar.tsx mounts plugin panels via PluginPanelSlot.
 import { invoke, open as openDialog } from "./lib/ipc";
@@ -45,7 +57,11 @@ import { useSettings } from "./settings/useSettings";
 import { useUiState } from "./settings/useUiState";
 import { onCoreChange, onExtChange } from "./settings/event-bus";
 import { findTheme } from "./settings/themes";
-import { SettingsModal } from "./settings/SettingsModal";
+const SettingsModal = lazy(() =>
+  import("./settings/SettingsModal").then((m) => ({
+    default: m.SettingsModal,
+  })),
+);
 import { useVoiceRecognition } from "./hooks/useVoiceRecognition";
 import { useThemeVars } from "./hooks/useThemeVars";
 import { useGlobalHotkeys } from "./hooks/useGlobalHotkeys";
@@ -1471,45 +1487,53 @@ function AppInner({
       )}
 
       {showPalette && (
-        <AICommandPalette
-          defaultProvider={aiProvider}
-          defaultModel={aiModel}
-          baseUrl={aiBaseUrl}
-          cwd={activeTab?.cwd}
-          recentOutput={paletteRecentOutput}
-          onClose={() => setShowPalette(false)}
-          onPaste={(text, run) => {
-            pasteToActive(text, run).catch(() => {});
-          }}
-          onUsage={accumulateUsage}
-        />
+        <Suspense fallback={null}>
+          <AICommandPalette
+            defaultProvider={aiProvider}
+            defaultModel={aiModel}
+            baseUrl={aiBaseUrl}
+            cwd={activeTab?.cwd}
+            recentOutput={paletteRecentOutput}
+            onClose={() => setShowPalette(false)}
+            onPaste={(text, run) => {
+              pasteToActive(text, run).catch(() => {});
+            }}
+            onUsage={accumulateUsage}
+          />
+        </Suspense>
       )}
 
       {settings.aiEnabled && uiState.aiPanelOpen && (
-        <AIPanel
-          defaultProvider={aiProvider}
-          defaultModel={aiModel}
-          baseUrl={aiBaseUrl}
-          attachContext={settings.aiAttachContext}
-          activeTabId={ws.activeId}
-          activePtyId={ws.activeId != null ? ptyMap.get(ws.activeId) ?? null : null}
-          cwd={activeTab?.cwd}
-          onClose={() => updateUi("aiPanelOpen", false)}
-          onUsage={accumulateUsage}
-        />
+        <Suspense fallback={null}>
+          <AIPanel
+            defaultProvider={aiProvider}
+            defaultModel={aiModel}
+            baseUrl={aiBaseUrl}
+            attachContext={settings.aiAttachContext}
+            activeTabId={ws.activeId}
+            activePtyId={
+              ws.activeId != null ? ptyMap.get(ws.activeId) ?? null : null
+            }
+            cwd={activeTab?.cwd}
+            onClose={() => updateUi("aiPanelOpen", false)}
+            onUsage={accumulateUsage}
+          />
+        </Suspense>
       )}
 
       {explainState && (
-        <ExplainPopover
-          selection={explainState.selection}
-          context={explainState.context}
-          cwd={explainState.cwd}
-          defaultProvider={aiProvider}
-          defaultModel={aiModel}
-          baseUrl={aiBaseUrl}
-          onClose={() => setExplainState(null)}
-          onUsage={accumulateUsage}
-        />
+        <Suspense fallback={null}>
+          <ExplainPopover
+            selection={explainState.selection}
+            context={explainState.context}
+            cwd={explainState.cwd}
+            defaultProvider={aiProvider}
+            defaultModel={aiModel}
+            baseUrl={aiBaseUrl}
+            onClose={() => setExplainState(null)}
+            onUsage={accumulateUsage}
+          />
+        </Suspense>
       )}
 
       {settings.voiceEnabled && (
@@ -1522,23 +1546,25 @@ function AppInner({
       )}
 
       {showSettings && (
-        <SettingsModal
-          settings={settings}
-          update={update}
-          reset={reset}
-          onClose={() => {
-            setShowSettings(false);
-            setPendingExtensionsView(null);
-          }}
-          vaultUnlocked={vault.status.unlocked}
-          vaultExists={vault.status.exists}
-          onRequestVault={() =>
-            requestVault(vault.status.exists ? "unlock" : "init")
-          }
-          mcpStatus={mcp.status}
-          initialSection={pendingExtensionsView ? "extensions" : undefined}
-          initialExtensionsView={pendingExtensionsView ?? undefined}
-        />
+        <Suspense fallback={null}>
+          <SettingsModal
+            settings={settings}
+            update={update}
+            reset={reset}
+            onClose={() => {
+              setShowSettings(false);
+              setPendingExtensionsView(null);
+            }}
+            vaultUnlocked={vault.status.unlocked}
+            vaultExists={vault.status.exists}
+            onRequestVault={() =>
+              requestVault(vault.status.exists ? "unlock" : "init")
+            }
+            mcpStatus={mcp.status}
+            initialSection={pendingExtensionsView ? "extensions" : undefined}
+            initialExtensionsView={pendingExtensionsView ?? undefined}
+          />
+        </Suspense>
       )}
 
       {closeConfirm && (

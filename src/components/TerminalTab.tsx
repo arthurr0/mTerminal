@@ -2,6 +2,7 @@ import { useEffect, useRef, type CSSProperties, type ReactNode } from "react";
 import { Terminal, type ITheme } from "@xterm/xterm";
 import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
+import { attachRenderer } from "../lib/xterm-renderer";
 import { Channel, invoke, writeText } from "../lib/ipc";
 import type { CursorStyle } from "../settings/useSettings";
 import { getTerminalRegistry, type TerminalAdapter } from "../extensions";
@@ -146,6 +147,7 @@ export function TerminalTab({
       }),
     );
     term.open(host);
+    attachRenderer(term);
 
     let disposed = false;
     const pendingInput: string[] = [];
